@@ -1,3 +1,5 @@
+import { useState } from 'react';
+
 const COLORS = {
   grid: '#ddd5e3',
   gridStrong: '#c9bfd1',
@@ -27,7 +29,8 @@ function wrapLabel(text, maxChars = 16) {
   return lines;
 }
 
-export default function RadarChart({ scores, labels }) {
+export default function RadarChart({ scores, labels, highlight = null, maxWidthClass = 'max-w-[420px]', onSelect }) {
+  const [hovered, setHovered] = useState(null);
   const cx = 260, cy = 220, maxR = 140;
   const n = scores.length;
   const levels = [20, 40, 60, 80, 100];
@@ -74,8 +77,8 @@ export default function RadarChart({ scores, labels }) {
   const avg = Math.round(scores.reduce((a, b) => a + b, 0) / n);
 
   return (
-    <div className="relative">
-      <svg viewBox="0 0 520 450" className="w-full max-w-[420px] mx-auto" role="img" aria-label="Gráfica de alineación curricular">
+    <div className={`relative w-full ${maxWidthClass} mx-auto`}>
+      <svg viewBox="15 25 490 355" className="w-full block" role="img" aria-label="Gráfica de alineación curricular">
         {levels.map(l => (
           <polygon
             key={l}
@@ -94,7 +97,7 @@ export default function RadarChart({ scores, labels }) {
               key={`s${l}`}
               x={p.x + 5}
               y={p.y - 3}
-              style={{ fontSize: '8px', fill: COLORS.scale, fontFamily: 'Inter, system-ui, sans-serif' }}
+              style={{ fontSize: '11px', fill: COLORS.scale, fontFamily: 'Inter, system-ui, sans-serif' }}
             >
               {l}
             </text>
@@ -102,18 +105,44 @@ export default function RadarChart({ scores, labels }) {
         })}
 
         {axisEnds.map((p, i) => (
-          <line key={i} x1={cx} y1={cy} x2={p.x} y2={p.y} stroke={COLORS.axis} strokeWidth={0.5} />
+          <line
+            key={i}
+            x1={cx} y1={cy} x2={p.x} y2={p.y}
+            stroke={highlight === i ? COLORS.stroke : COLORS.axis}
+            strokeWidth={highlight === i ? 1.4 : 0.5}
+            strokeOpacity={highlight === i ? 0.45 : 1}
+          />
         ))}
 
-        <polygon points={polygon(scores)} fill={COLORS.fill} stroke={COLORS.stroke} strokeWidth={2.5} strokeLinejoin="round" />
+        <polygon points={polygon(scores)} fill={COLORS.fill} stroke={COLORS.stroke} strokeWidth={3.5} strokeLinejoin="round" />
 
-        {dataPoints.map((p, i) => (
-          <circle key={i} cx={p.x} cy={p.y} r={4} fill={COLORS.point} stroke="white" strokeWidth={2} />
-        ))}
+        {dataPoints.map((p, i) => {
+          const hl = highlight === i;
+          const hv = hovered === i;
+          return (
+            <g key={i}>
+              {(hl || hv) && <circle cx={p.x} cy={p.y} r={15} fill={COLORS.point} fillOpacity={0.15} />}
+              <circle
+                cx={p.x} cy={p.y} r={hl || hv ? 9 : 6}
+                fill={COLORS.point} stroke="white" strokeWidth={hl || hv ? 3 : 2}
+              />
+              {/* Área ampliada para facilitar el hover y la selección */}
+              <circle
+                cx={p.x} cy={p.y} r={20}
+                fill="transparent"
+                onMouseEnter={() => setHovered(i)}
+                onMouseLeave={() => setHovered(null)}
+                onClick={onSelect ? () => onSelect(i) : undefined}
+                style={{ cursor: onSelect ? 'pointer' : 'default' }}
+              />
+            </g>
+          );
+        })}
 
         {labelPts.map((p, i) => {
           const off = labelOffset(i);
           const lines = wrapLabel(labels[i]);
+          const hl = highlight === i;
           return (
             <text
               key={i}
@@ -121,7 +150,8 @@ export default function RadarChart({ scores, labels }) {
               y={p.y + off.dy}
               textAnchor={labelAnchor(i)}
               dominantBaseline="middle"
-              style={{ fontSize: '10px', fill: COLORS.label, fontWeight: 600, fontFamily: 'Inter, system-ui, sans-serif' }}
+              onClick={onSelect ? () => onSelect(i) : undefined}
+              style={{ fontSize: '15px', fill: hl ? COLORS.stroke : COLORS.label, fontWeight: hl ? 800 : 700, fontFamily: 'Inter, system-ui, sans-serif', cursor: onSelect ? 'pointer' : 'default' }}
             >
               {lines.map((line, li) => (
                 <tspan key={li} x={p.x + off.dx} dy={li === 0 ? 0 : 13}>{line}</tspan>
@@ -130,29 +160,34 @@ export default function RadarChart({ scores, labels }) {
           );
         })}
 
-        {dataPoints.map((p, i) => {
+        {/* El porcentaje no es fijo: aparece como etiqueta al pasar el mouse sobre el punto */}
+        {hovered !== null && (() => {
+          const i = hovered;
+          const p = dataPoints[i];
           const off = labelOffset(i);
-          const dy2 = i === 0 ? -16 : off.dy > 0 ? 16 : -12;
+          const dy2 = i === 0 ? -22 : off.dy > 0 ? 24 : -18;
+          const tx = p.x;
+          const ty = p.y + dy2;
           return (
-            <text
-              key={`v${i}`}
-              x={p.x}
-              y={p.y + dy2}
-              textAnchor="middle"
-              style={{ fontSize: '10.5px', fill: COLORS.value, fontWeight: 700, fontFamily: 'Inter, system-ui, sans-serif' }}
-            >
-              {scores[i]}%
-            </text>
+            <g style={{ pointerEvents: 'none' }}>
+              <rect x={tx - 24} y={ty - 13} width={48} height={25} rx={12.5} fill={COLORS.stroke} />
+              <text
+                x={tx} y={ty} textAnchor="middle" dominantBaseline="middle"
+                style={{ fontSize: '14px', fill: 'white', fontWeight: 700, fontFamily: 'Inter, system-ui, sans-serif' }}
+              >
+                {scores[i]}%
+              </text>
+            </g>
           );
-        })}
+        })()}
 
-        <circle cx={cx} cy={cy} r={22} fill="white" fillOpacity={0.85} />
+        <circle cx={cx} cy={cy} r={31} fill="white" fillOpacity={0.9} />
         <text x={cx} y={cy + 1} textAnchor="middle" dominantBaseline="middle"
-          style={{ fontSize: '18px', fill: COLORS.stroke, fontWeight: 800, fontFamily: 'Poppins, system-ui, sans-serif' }}>
+          style={{ fontSize: '27px', fill: COLORS.stroke, fontWeight: 800, fontFamily: 'Poppins, system-ui, sans-serif' }}>
           {avg}
         </text>
-        <text x={cx} y={cy + 15} textAnchor="middle"
-          style={{ fontSize: '7.5px', fill: COLORS.scale, fontWeight: 600, fontFamily: 'Inter, system-ui, sans-serif', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+        <text x={cx} y={cy + 21} textAnchor="middle"
+          style={{ fontSize: '10.5px', fill: COLORS.scale, fontWeight: 600, fontFamily: 'Inter, system-ui, sans-serif', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
           promedio
         </text>
       </svg>

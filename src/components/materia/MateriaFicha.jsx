@@ -5,6 +5,43 @@ import { materiasService, alineacionService } from '../../services/api';
 import { useUser } from '../../context/UserContext';
 import RadarChart from './RadarChart';
 
+// Interpretación legible del nivel de consenso del panel de expertos.
+const CONSENSO_TEXTO = {
+  '>60 %': 'Más del 60 % del panel de expertos coincide con este diagnóstico.',
+  'Unánime': 'La totalidad del panel de expertos coincide con este diagnóstico.',
+  'Dividido': 'El panel está dividido: no existe una postura mayoritaria.',
+  '~50 %': 'Cerca de la mitad del panel coincide; el consenso es moderado.',
+};
+
+// Burbuja informativa reutilizable: se muestra al pasar el mouse y al hacer clic.
+function InfoPopover({ children, content, className = '', label, align = 'center', style, bubbleWidth = 'w-64' }) {
+  const [open, setOpen] = useState(false);
+  const pos = align === 'right'
+    ? 'right-0'
+    : align === 'left'
+      ? 'left-0'
+      : 'left-1/2 -translate-x-1/2';
+  return (
+    <span
+      className="relative inline-flex align-middle shrink-0"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+    >
+      <button type="button" aria-label={label} onClick={() => setOpen(o => !o)} className={className} style={style}>
+        {children}
+      </button>
+      {open && (
+        <span
+          role="tooltip"
+          className={`absolute ${pos} top-full mt-2 z-30 ${bubbleWidth} bg-ink text-white text-[11px] leading-relaxed font-normal normal-case tracking-normal text-left rounded-xl px-3.5 py-2.5 shadow-xl shadow-ink/25 animate-fade-in`}
+        >
+          {content}
+        </span>
+      )}
+    </span>
+  );
+}
+
 function EditableField({ label, value, fieldKey, onSave, wide }) {
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(value || '');
@@ -91,22 +128,6 @@ function EditableField({ label, value, fieldKey, onSave, wide }) {
           {value || <span className="italic text-ink-2/40">Pendiente de registro.</span>}
         </p>
       )}
-    </div>
-  );
-}
-
-function ScoreBar({ label, value }) {
-  const color = value >= 85 ? 'bg-magenta' : value >= 70 ? 'bg-magenta/70' : 'bg-magenta/40';
-  return (
-    <div className="flex items-center gap-3">
-      <span className="text-xs text-ink-2 w-36 shrink-0 truncate" title={label}>{label}</span>
-      <div className="flex-1 h-2 bg-magenta/8 rounded-full overflow-hidden">
-        <div
-          className={`h-full rounded-full transition-all duration-700 ease-out ${color}`}
-          style={{ width: `${value}%` }}
-        />
-      </div>
-      <span className="text-xs font-bold text-magenta w-10 text-right">{value}%</span>
     </div>
   );
 }
@@ -249,7 +270,96 @@ function RecCard({ rec, indice, override, canEdit, onEdit, onDelete, onRestore }
   );
 }
 
-function SugerenciasAlineacion({ materiaId, sugerenciasDocentes, recOverrides, canEdit, onEditRec, onDeleteRec, onRestoreRec }) {
+function SugerenciaDocenteCard({ s, materiaId, canEdit, onSave, onDelete }) {
+  const [editing, setEditing] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [semana, setSemana] = useState(s.semana || '');
+  const [titulo, setTitulo] = useState(s.titulo || '');
+  const [descripcion, setDescripcion] = useState(s.descripcion || '');
+
+  function resetCampos() {
+    setSemana(s.semana || '');
+    setTitulo(s.titulo || '');
+    setDescripcion(s.descripcion || '');
+  }
+
+  async function save() {
+    if (!String(semana).trim() || !titulo.trim()) return;
+    setBusy(true);
+    await onSave({
+      _id: s._id,
+      materiaId,
+      profesor: s.profesor,
+      semana: String(semana).trim(),
+      titulo: titulo.trim(),
+      descripcion: descripcion.trim(),
+    });
+    setBusy(false);
+    setEditing(false);
+  }
+
+  async function remove() {
+    setBusy(true);
+    await onDelete(s._id);
+  }
+
+  if (editing) {
+    return (
+      <div className="bg-white border border-magenta/30 rounded-xl p-4 space-y-2 animate-fade-in">
+        <div className="flex gap-2">
+          <input value={semana} onChange={e => setSemana(e.target.value)} className="w-24 px-3 py-1.5 text-sm border border-magenta/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-magenta/20" placeholder="Semana" />
+          <input value={titulo} onChange={e => setTitulo(e.target.value)} className="flex-1 px-3 py-1.5 text-sm border border-magenta/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-magenta/20" placeholder="Título" />
+        </div>
+        <textarea value={descripcion} onChange={e => setDescripcion(e.target.value)} rows={2} className="w-full px-3 py-1.5 text-xs border border-magenta/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-magenta/20 resize-y" placeholder="Justificación (opcional)" />
+        <div className="flex gap-2">
+          <button onClick={save} disabled={busy} className="px-3 py-1 bg-magenta text-white text-xs font-semibold rounded-lg hover:bg-magenta-dark disabled:opacity-40 cursor-pointer transition-colors">{busy ? 'Guardando...' : 'Guardar'}</button>
+          <button onClick={() => { setEditing(false); resetCampos(); }} className="px-3 py-1 text-xs text-ink-2 hover:bg-gray-100 rounded-lg cursor-pointer transition-colors">Cancelar</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white/80 border border-amber-200/30 rounded-xl p-4 hover:shadow-md transition-all duration-300 group">
+      <div className="flex items-start gap-3">
+        <span className="inline-flex items-center justify-center w-16 h-7 rounded-lg bg-magenta/10 text-magenta text-[11px] font-bold shrink-0 mt-0.5">
+          Sem. {s.semana}
+        </span>
+        <div className="min-w-0 flex-1">
+          <h4 className="font-heading font-bold text-sm text-ink mb-1">{s.titulo}</h4>
+          {s.descripcion && <p className="text-xs text-ink-2 leading-relaxed mb-2">{s.descripcion}</p>}
+          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-magenta/8 border border-magenta/15 text-magenta">
+            {s.profesor}
+          </span>
+        </div>
+        {canEdit && !confirming && (
+          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+            <button onClick={() => setEditing(true)} className="text-ink-2/40 hover:text-magenta cursor-pointer transition-colors p-1" title="Editar">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+            </button>
+            <button onClick={() => setConfirming(true)} className="text-ink-2/30 hover:text-red-500 cursor-pointer transition-colors p-1" title="Eliminar">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        )}
+        {confirming && (
+          <span className="inline-flex items-center gap-1.5 text-[11px] animate-fade-in shrink-0">
+            <span className="text-red-500 font-semibold">¿Eliminar?</span>
+            <button onClick={remove} disabled={busy} className="px-1.5 py-0.5 bg-red-500 text-white rounded font-semibold hover:bg-red-600 disabled:opacity-40 cursor-pointer transition-colors">Sí</button>
+            <button onClick={() => setConfirming(false)} className="px-1.5 py-0.5 bg-gray-200 text-ink rounded font-semibold hover:bg-gray-300 cursor-pointer transition-colors">No</button>
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SugerenciasAlineacion({ materiaId, sugerenciasDocentes, recOverrides, canEdit, onEditRec, onDeleteRec, onRestoreRec, onSaveSugerencia, onDeleteSugerencia }) {
   const recs = RECOMENDACIONES_PLANEADOR[materiaId] || [];
   const docentes = sugerenciasDocentes || [];
   if (recs.length === 0 && docentes.length === 0) return null;
@@ -296,27 +406,21 @@ function SugerenciasAlineacion({ materiaId, sugerenciasDocentes, recOverrides, c
         )}
 
         {docentes.map(s => (
-          <div key={s._id} className="bg-white/80 border border-amber-200/30 rounded-xl p-4 hover:shadow-md transition-all duration-300">
-            <div className="flex items-start gap-3">
-              <span className="inline-flex items-center justify-center w-16 h-7 rounded-lg bg-magenta/10 text-magenta text-[11px] font-bold shrink-0 mt-0.5">
-                Sem. {s.semana}
-              </span>
-              <div className="min-w-0 flex-1">
-                <h4 className="font-heading font-bold text-sm text-ink mb-1">{s.titulo}</h4>
-                {s.descripcion && <p className="text-xs text-ink-2 leading-relaxed mb-2">{s.descripcion}</p>}
-                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-magenta/8 border border-magenta/15 text-magenta">
-                  {s.profesor}
-                </span>
-              </div>
-            </div>
-          </div>
+          <SugerenciaDocenteCard
+            key={s._id}
+            s={s}
+            materiaId={materiaId}
+            canEdit={canEdit}
+            onSave={onSaveSugerencia}
+            onDelete={onDeleteSugerencia}
+          />
         ))}
       </div>
     </section>
   );
 }
 
-export default function MateriaFicha({ materiaId, materiaData, sugerenciasDocentes = [], recOverrides = [], onEditRec, onDeleteRec, onRestoreRec, onUpdate }) {
+export default function MateriaFicha({ materiaId, materiaData, sugerenciasDocentes = [], recOverrides = [], onEditRec, onDeleteRec, onRestoreRec, onSaveSugerencia, onDeleteSugerencia, onUpdate }) {
   const { user } = useUser();
   const m = getMateria(materiaId);
   const nv = getNivel(m?.nivel);
@@ -327,6 +431,7 @@ export default function MateriaFicha({ materiaId, materiaData, sugerenciasDocent
   const didacticas = DIDACTICAS[materiaId] || [];
   const [showRefs, setShowRefs] = useState(false);
   const [dynamicAlin, setDynamicAlin] = useState(null);
+  const [selectedDim, setSelectedDim] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -337,11 +442,9 @@ export default function MateriaFicha({ materiaId, materiaData, sugerenciasDocent
   }, [materiaId, materiaData]);
 
   const alin = dynamicAlin?.scores || staticAlin;
-  const fuente = dynamicAlin?.fuente || 'bibliográfica';
-  const detalle = dynamicAlin?.detalle || null;
 
   const radarScores = DIMENSIONES.map(d => alin?.[d.key] || 0);
-  const radarLabels = DIMENSIONES.map(d => d.nombre);
+  const radarLabels = DIMENSIONES.map(d => d.corto || d.nombre);
 
   async function handleSave(fieldKey, value) {
     const current = materiaData || {};
@@ -480,7 +583,15 @@ export default function MateriaFicha({ materiaId, materiaData, sugerenciasDocent
               </span>
             </div>
             <p className="text-xs text-ink-2 mb-4">
-              {meta.metodologia} <span className="italic text-ink-2/60">Fuente: {meta.fuente}</span>
+              {meta.metodologia}{' '}
+              <InfoPopover
+                align="right"
+                label="Ver detalle de la fuente"
+                content={meta.fuenteDetalle}
+                className="italic font-semibold text-magenta underline decoration-dotted decoration-magenta/40 underline-offset-2 hover:decoration-magenta cursor-pointer transition-colors"
+              >
+                (Fuente: {meta.fuente})
+              </InfoPopover>
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -565,10 +676,10 @@ export default function MateriaFicha({ materiaId, materiaData, sugerenciasDocent
         if (!pert) return null;
         const meta = INFORME_PERTINENCIA.meta;
         const semaforoConfig = {
-          verde: { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700', dot: 'bg-emerald-500', label: 'Prioritario' },
-          amarillo: { bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700', dot: 'bg-amber-400', label: 'Capacitación en puesto' },
-          rojo: { bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-700', dot: 'bg-red-500', label: 'Requiere actualización' },
-          debate: { bg: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-700', dot: 'bg-purple-500', label: 'Zona de debate' },
+          verde: { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700', dot: 'bg-emerald-500', label: 'Prioritario', glow: 'rgba(16, 185, 129, 0.22)', explica: 'Eje vigente y prioritario: se conserva y se refuerza en el currículo.' },
+          amarillo: { bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700', dot: 'bg-amber-400', label: 'Capacitación en puesto', glow: 'rgba(245, 158, 11, 0.22)', explica: 'Pertinente, aunque la empresa suele complementar la formación en el puesto.' },
+          rojo: { bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-700', dot: 'bg-red-500', label: 'Requiere actualización', glow: 'rgba(239, 68, 68, 0.22)', explica: 'Desactualizado frente a la demanda del sector: requiere ajuste.' },
+          debate: { bg: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-700', dot: 'bg-purple-500', label: 'Zona de debate', glow: 'rgba(168, 85, 247, 0.22)', explica: 'No hay acuerdo entre los expertos sobre su alcance o profundidad.' },
         };
         const sc = semaforoConfig[pert.semaforo] || semaforoConfig.amarillo;
 
@@ -578,10 +689,25 @@ export default function MateriaFicha({ materiaId, materiaData, sugerenciasDocent
               <h3 className="font-heading font-bold text-base text-ink">
                 Informe de pertinencia curricular
               </h3>
-              <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full shrink-0 ${sc.bg} ${sc.text} border ${sc.border}`}>
+              <InfoPopover
+                align="right"
+                label="Cómo interpretar el consenso"
+                style={{ '--glow-color': sc.glow }}
+                className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full cursor-help animate-glow ${sc.bg} ${sc.text} border ${sc.border}`}
+                content={
+                  <>
+                    <strong className="block text-white mb-0.5">{sc.label}</strong>
+                    <span className="block mb-2 text-white/80">{sc.explica}</span>
+                    <strong className="block text-white mb-0.5">Consenso: {pert.consenso}</strong>
+                    <span className="block text-white/80">
+                      {CONSENSO_TEXTO[pert.consenso] || 'Nivel de acuerdo del panel de expertos sobre el diagnóstico.'}
+                    </span>
+                  </>
+                }
+              >
                 <span className={`w-2 h-2 rounded-full ${sc.dot}`} />
                 {sc.label} · Consenso: {pert.consenso}
-              </span>
+              </InfoPopover>
             </div>
             <p className="text-xs text-ink-2 mb-4">
               {meta.metodologia} <span className="italic text-ink-2/60">Fuente: {meta.fuente}</span>
@@ -619,37 +745,6 @@ export default function MateriaFicha({ materiaId, materiaData, sugerenciasDocent
               </div>
             </div>
 
-            {/* Matriz de brechas */}
-            <div className="mt-4 pt-3 border-t border-black/5">
-              <h4 className="text-[0.65rem] tracking-wide uppercase font-bold text-ink-2 mb-2">
-                Matriz de brechas del programa (todos los ejes)
-              </h4>
-              <div className="overflow-x-auto">
-                <table className="w-full text-[11px]">
-                  <thead>
-                    <tr className="border-b border-black/10">
-                      <th className="text-left py-1.5 pr-3 font-bold text-ink-2">Eje</th>
-                      <th className="text-left py-1.5 pr-3 font-bold text-ink-2">Oferta actual</th>
-                      <th className="text-left py-1.5 pr-3 font-bold text-ink-2">Demanda del sector</th>
-                      <th className="text-left py-1.5 font-bold text-ink-2">Acción sugerida</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {INFORME_PERTINENCIA.ejesBrechas.map((b, i) => (
-                      <tr key={i} className="border-b border-black/5">
-                        <td className="py-1.5 pr-3 font-semibold text-ink">{b.eje}</td>
-                        <td className="py-1.5 pr-3 text-ink-2">{b.actual}</td>
-                        <td className="py-1.5 pr-3 text-ink-2">{b.demanda}</td>
-                        <td className="py-1.5 text-ink-2">{b.accion}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <p className="text-[10px] text-ink-2/50 italic mt-2">
-                {meta.diagnostico}
-              </p>
-            </div>
           </section>
         );
       })()}
@@ -663,56 +758,181 @@ export default function MateriaFicha({ materiaId, materiaData, sugerenciasDocent
           <p className="text-xs text-ink-2 mb-2">
             Estimación basada en tres fuentes: testeo con 8 empresas del sector, panel de 10 expertos de pertinencia curricular y análisis bibliográfico del MNC y la estructura didáctica FTCOCU-236.
           </p>
-          <div className="flex flex-wrap items-center gap-2 mb-4">
-            <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-              fuente === 'integral' ? 'bg-ok/10 text-ok' :
-              fuente === 'heurística' ? 'bg-amber-100 text-amber-700' :
-              'bg-magenta/8 text-magenta'
-            }`}>
-              <span className={`w-1.5 h-1.5 rounded-full ${
-                fuente === 'integral' ? 'bg-ok' :
-                fuente === 'heurística' ? 'bg-amber-500' :
-                'bg-magenta'
-              }`} />
-              Fuente: {fuente}
-            </span>
-            {detalle && (
-              <>
-                <span className="text-[10px] text-ink-2/50">
-                  {detalle.aportes} aporte{detalle.aportes !== 1 ? 's' : ''}
-                </span>
-                <span className="text-[10px] text-ink-2/30">|</span>
-                <span className="text-[10px] text-ink-2/50">
-                  {detalle.semanasPlaneador}/18 semanas
-                </span>
-                <span className="text-[10px] text-ink-2/30">|</span>
-                <span className="text-[10px] text-ink-2/50">
-                  {detalle.tieneSintesis ? 'Con síntesis IA' : 'Sin síntesis IA'}
-                </span>
-                <span className="text-[10px] text-ink-2/30">|</span>
-                <span className="text-[10px] text-ink-2/50">
-                  Cobertura: {detalle.cobertura}%
-                </span>
-              </>
-            )}
+          {/* Radar grande */}
+          <div className="my-4">
+            <RadarChart
+              scores={radarScores}
+              labels={radarLabels}
+              highlight={selectedDim}
+              maxWidthClass="max-w-[450px]"
+              onSelect={setSelectedDim}
+            />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
-            <RadarChart scores={radarScores} labels={radarLabels} />
+          <p className="flex items-center justify-center gap-1.5 text-[11px] text-ink-2/60 mb-4">
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5 text-magenta/50" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Seleccione una dimensión para conocer qué mide, por qué aparece y sus fuentes.
+          </p>
 
-            <div className="space-y-3">
-              {DIMENSIONES.map((d, i) => (
-                <ScoreBar key={d.key} label={d.nombre} value={radarScores[i]} />
-              ))}
-              <div className="pt-2 border-t border-magenta/10 mt-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-ink">Promedio general</span>
-                  <span className="text-sm font-bold text-magenta">
-                    {Math.round(radarScores.reduce((a, b) => a + b, 0) / radarScores.length)}%
-                  </span>
-                </div>
+          {/* Explorador de dimensiones: lista seleccionable + panel de detalle al lado */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
+            {/* Las 5 dimensiones */}
+            <div className="space-y-2">
+              {DIMENSIONES.map((d, i) => {
+                const val = radarScores[i];
+                const active = selectedDim === i;
+                const barColor = val >= 85 ? 'bg-magenta' : val >= 70 ? 'bg-magenta/70' : 'bg-magenta/40';
+                return (
+                  <button
+                    key={d.key}
+                    onClick={() => setSelectedDim(i)}
+                    className={`w-full text-left rounded-xl p-2.5 border transition-all duration-200 cursor-pointer ${
+                      active ? 'border-magenta/40 bg-magenta/[0.05] shadow-sm' : 'border-transparent hover:bg-magenta/[0.03]'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <span className={`w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center shrink-0 ${active ? 'bg-magenta text-white' : 'bg-magenta/10 text-magenta'}`}>
+                        {i + 1}
+                      </span>
+                      <span className={`text-xs ${active ? 'font-bold text-ink' : 'text-ink-2'}`}>{d.nombre}</span>
+                      <span className="ml-auto text-xs font-bold text-magenta">{val}%</span>
+                    </div>
+                    <div className="h-1.5 bg-magenta/8 rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full transition-all duration-700 ease-out ${barColor}`} style={{ width: `${val}%` }} />
+                    </div>
+                  </button>
+                );
+              })}
+              <div className="pt-2 border-t border-magenta/10 mt-1 flex items-center justify-between px-2.5">
+                <span className="text-xs font-bold text-ink">Promedio general</span>
+                <span className="text-sm font-bold text-magenta">
+                  {Math.round(radarScores.reduce((a, b) => a + b, 0) / radarScores.length)}%
+                </span>
               </div>
             </div>
+
+            {/* Detalle de la dimensión seleccionada */}
+            {(() => {
+              const d = DIMENSIONES[selectedDim];
+              const val = radarScores[selectedDim];
+              return (
+                <div key={d.key} className="bg-white border border-magenta/15 rounded-xl p-4 shadow-sm animate-fade-in">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="w-6 h-6 rounded-full bg-magenta text-white text-[11px] font-bold flex items-center justify-center shrink-0">
+                      {selectedDim + 1}
+                    </span>
+                    <h4 className="font-heading font-bold text-sm text-ink">{d.nombre}</h4>
+                    <span className="ml-auto text-base font-bold text-magenta">{val}%</span>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div>
+                      <span className="block text-[9px] font-bold uppercase tracking-wider text-magenta mb-1">Qué mide (grado de correspondencia)</span>
+                      <p className="text-xs text-ink-2 leading-relaxed">{d.desc}</p>
+                    </div>
+                    <div>
+                      <span className="block text-[9px] font-bold uppercase tracking-wider text-magenta mb-1">Por qué aparece en el gráfico</span>
+                      <p className="text-xs text-ink-2 leading-relaxed">{d.porque}</p>
+                    </div>
+                    {d.calculo && (
+                      <div>
+                        <span className="block text-[9px] font-bold uppercase tracking-wider text-magenta mb-1">Cómo se calculó</span>
+                        <p className="text-xs text-ink-2 leading-relaxed">{d.calculo}</p>
+                        {d.factores && (
+                          <InfoPopover
+                            align="right"
+                            bubbleWidth="w-72"
+                            label="Ver escala de ponderación"
+                            className="inline-flex items-center gap-1 mt-1.5 text-[11px] font-semibold text-magenta hover:text-magenta-dark cursor-pointer transition-colors"
+                            content={
+                              <>
+                                <strong className="block text-white mb-1.5">Escala de ponderación</strong>
+                                <span className="block text-white/60 mb-1 text-[9px] uppercase tracking-wider font-bold">Bandas del puntaje</span>
+                                <div className="space-y-1 mb-2.5">
+                                  {[
+                                    { r: '85 – 100', e: 'Muy alto', c: '#E6007E' },
+                                    { r: '70 – 84', e: 'Alto', c: '#ff4fb0' },
+                                    { r: '0 – 69', e: 'En desarrollo', c: '#f7b8db' },
+                                  ].map((b, bi) => (
+                                    <span key={bi} className="flex items-center gap-2 text-white/85">
+                                      <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: b.c }} />
+                                      <span className="font-semibold w-16">{b.r}</span>
+                                      <span className="text-white/70">{b.e}</span>
+                                    </span>
+                                  ))}
+                                </div>
+                                <span className="block text-white/60 mb-1 text-[9px] uppercase tracking-wider font-bold">Factores ponderados</span>
+                                <div className="space-y-1">
+                                  {d.factores.map((f, fi) => (
+                                    <span key={fi} className="flex items-center justify-between gap-3 text-white/85">
+                                      <span>{f.nombre}</span>
+                                      <span className="font-bold shrink-0">{f.peso}%</span>
+                                    </span>
+                                  ))}
+                                </div>
+                              </>
+                            }
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
+                            </svg>
+                            Ver escala de ponderación
+                          </InfoPopover>
+                        )}
+                      </div>
+                    )}
+                    <div>
+                      <span className="block text-[9px] font-bold uppercase tracking-wider text-magenta mb-1.5">Fuentes de este dato</span>
+                      <div className="flex flex-col gap-1.5">
+                        {d.fuentes.map((f, fi) => f.url ? (
+                          <a
+                            key={fi}
+                            href={f.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-start gap-1.5 text-[11px] text-magenta hover:text-magenta-dark font-medium group transition-colors"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5 shrink-0 mt-px" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                            </svg>
+                            <span className="group-hover:underline">{f.nombre}</span>
+                          </a>
+                        ) : (
+                          <span key={fi} className="inline-flex items-start gap-1.5 text-[11px] text-ink-2/70">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5 shrink-0 mt-px text-ink-2/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            <span>{f.nombre} <span className="text-[9px] text-ink-2/40">(documento interno)</span></span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    {d.mejoras && (
+                      <div className="bg-magenta/[0.04] border border-magenta/15 rounded-lg p-3">
+                        <span className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider text-magenta mb-1.5">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                          </svg>
+                          Cómo mejorar este indicador
+                        </span>
+                        <ul className="space-y-1.5">
+                          {d.mejoras.map((m, mi) => (
+                            <li key={mi} className="flex items-start gap-1.5 text-[11px] text-ink-2 leading-relaxed">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3 text-magenta shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                              </svg>
+                              {m}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
 
         </section>
@@ -727,6 +947,8 @@ export default function MateriaFicha({ materiaId, materiaData, sugerenciasDocent
         onEditRec={onEditRec}
         onDeleteRec={onDeleteRec}
         onRestoreRec={onRestoreRec}
+        onSaveSugerencia={onSaveSugerencia}
+        onDeleteSugerencia={onDeleteSugerencia}
       />
 
       {/* Referencias normativas y contexto */}

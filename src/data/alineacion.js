@@ -1,9 +1,117 @@
 export const DIMENSIONES = [
-  { key: 'consultorTech', nombre: 'Perfil Consultor Tech' },
-  { key: 'marcoNacional', nombre: 'Marco Nacional (MNC)' },
-  { key: 'sectorMedellin', nombre: 'Sector TI Medellín' },
-  { key: 'empleabilidad', nombre: 'Empleabilidad directa' },
-  { key: 'innovacionDidactica', nombre: 'Innovación pedagógica' },
+  {
+    key: 'consultorTech',
+    nombre: 'Perfil Consultor Tech',
+    corto: 'Consultor Tech',
+    desc: 'Mide qué tanto la materia desarrolla el perfil de Consultor Tech: interpretar al cliente, diseñar soluciones y acompañar su implementación, más allá de solo programar.',
+    porque: 'Es el eje central de la iniciativa del programa; cada materia debe aportar a esta transformación profesional.',
+    calculo: 'Se pondera la presencia de los cuatro pilares del Consultor Tech (interpretar, diseñar, comunicar y acompañar) en las unidades y didácticas de la materia, ajustada con la valoración del testeo empresarial.',
+    factores: [
+      { nombre: 'Interpretar al cliente', peso: 25 },
+      { nombre: 'Diseñar soluciones', peso: 25 },
+      { nombre: 'Comunicar negocio-técnica', peso: 25 },
+      { nombre: 'Acompañar la implementación', peso: 25 },
+    ],
+    mejoras: [
+      'Incluir un cliente o stakeholder real en el proyecto integrador para practicar interpretación y acompañamiento.',
+      'Agregar entregables donde el estudiante traduzca requisitos de negocio a una solución técnica.',
+      'Evaluar la comunicación con el cliente, no solo el código entregado.',
+    ],
+    fuentes: [
+      { nombre: 'Iniciativa Consultor Tech — CESDE', url: null },
+      { nombre: 'Testeo empresarial (CESDE–Comfama, 2026)', url: null },
+    ],
+  },
+  {
+    key: 'marcoNacional',
+    nombre: 'Marco Nacional (MNC)',
+    corto: 'MNC',
+    desc: 'Grado de correspondencia de la materia con los descriptores del Marco Nacional de Cualificaciones (saber, saber-hacer y saber-ser) para los niveles 2 y 3.',
+    porque: 'La pertinencia curricular se valida contra la normativa nacional vigente (Decreto 1649 de 2021).',
+    calculo: 'Se verifica qué descriptores del nivel correspondiente del MNC (saber, saber-hacer y saber-ser) cubren las unidades de la materia y se calcula el porcentaje de cobertura.',
+    factores: [
+      { nombre: 'Saber (conocimientos)', peso: 35 },
+      { nombre: 'Saber-hacer (destrezas)', peso: 40 },
+      { nombre: 'Saber-ser (autonomía)', peso: 25 },
+    ],
+    mejoras: [
+      'Mapear cada unidad de aprendizaje con los descriptores del nivel MNC y cubrir los faltantes.',
+      'Reforzar el saber-ser (autonomía y responsabilidad) con rúbricas explícitas.',
+      'Documentar evidencias de saber-hacer alineadas al Catálogo Nacional de Cualificaciones.',
+    ],
+    fuentes: [
+      { nombre: 'Marco Nacional de Cualificaciones — Colombia Aprende', url: 'https://especiales.colombiaaprende.edu.co/mnc/index.html' },
+      { nombre: 'Estructura y niveles del MNC', url: 'https://especiales.colombiaaprende.edu.co/mnc/estructura.html' },
+      { nombre: 'Decreto 923 de 2024 — Formación para el trabajo', url: 'https://www.funcionpublica.gov.co/eva/gestornormativo/norma.php?i=245116' },
+    ],
+  },
+  {
+    key: 'sectorMedellin',
+    nombre: 'Sector TI Medellín',
+    corto: 'Sector TI',
+    desc: 'Alineación de los contenidos con las habilidades que demanda el sector TI de Medellín y Antioquia.',
+    porque: 'La formación debe responder a la demanda real del ecosistema tecnológico regional.',
+    calculo: 'Se cruzan las habilidades que enseña la materia con las demandadas por el sector TI regional (Ruta N, MinTIC y Fedesoft) y se mide el porcentaje de coincidencia.',
+    factores: [
+      { nombre: 'Coincidencia con habilidades demandadas', peso: 50 },
+      { nombre: 'Vigencia tecnológica', peso: 25 },
+      { nombre: 'Diferenciación en el mercado', peso: 25 },
+    ],
+    mejoras: [
+      'Actualizar las herramientas de la materia a las más demandadas por el sector (nube, CI/CD, IA).',
+      'Incorporar retos o datos provistos por empresas del ecosistema (Ruta N, Comfama).',
+      'Revisar cada año la demanda regional y ajustar los contenidos en consecuencia.',
+    ],
+    fuentes: [
+      { nombre: 'Ruta N — Ecosistema de innovación Medellín', url: 'https://rutanmedellin.org/' },
+      { nombre: 'Estudio de brecha de talento digital (MinTIC + Fedesoft)', url: 'https://www.mintic.gov.co/portal/715/w3-article-425772.html' },
+    ],
+  },
+  {
+    key: 'empleabilidad',
+    nombre: 'Empleabilidad directa',
+    corto: 'Empleabilidad',
+    desc: 'Qué tanto las competencias de la materia se traducen en empleabilidad inmediata del egresado en roles reales del mercado.',
+    porque: 'El objetivo de un programa técnico laboral es la inserción laboral efectiva del egresado.',
+    calculo: 'Se estima a partir de los votos del testeo empresarial (cuán valorada y diferenciadora es la materia) y de la demanda de roles laborales, normalizada a una escala de 0 a 100.',
+    factores: [
+      { nombre: 'Valoración del testeo (más valorado)', peso: 40 },
+      { nombre: 'Carácter diferenciador', peso: 30 },
+      { nombre: 'Demanda de roles laborales', peso: 30 },
+    ],
+    mejoras: [
+      'Alinear los entregables con tareas reales de los roles junior que demanda el mercado.',
+      'Incluir un portafolio o proyecto demostrable que el egresado pueda mostrar al postularse.',
+      'Priorizar las competencias mejor valoradas en el testeo empresarial.',
+    ],
+    fuentes: [
+      { nombre: 'Testeo con 8 empresas del sector TI (CESDE–Comfama, 2026)', url: null },
+      { nombre: 'MinTIC — Talento Tech Colombia', url: 'https://talentodigital.mintic.gov.co/' },
+    ],
+  },
+  {
+    key: 'innovacionDidactica',
+    nombre: 'Innovación pedagógica',
+    corto: 'Innovación',
+    desc: 'Nivel de innovación en las estrategias didácticas: aprendizaje basado en proyectos, uso de IA, casos reales y evaluación por evidencias.',
+    porque: 'La forma de enseñar es tan determinante como el contenido para formar consultores tecnológicos.',
+    calculo: 'Se evalúan las estrategias didácticas registradas para la materia (aprendizaje basado en proyectos, uso de IA, casos reales y evaluación por evidencias) y se pondera su nivel de innovación.',
+    factores: [
+      { nombre: 'Aprendizaje basado en proyectos', peso: 30 },
+      { nombre: 'Uso de IA en el aula', peso: 25 },
+      { nombre: 'Casos reales / cliente real', peso: 25 },
+      { nombre: 'Evaluación por evidencias', peso: 20 },
+    ],
+    mejoras: [
+      'Adoptar aprendizaje basado en proyectos con un caso real por nivel.',
+      'Integrar IA en el aula: programación asistida, prompting y auditoría de resultados.',
+      'Reemplazar exámenes memorísticos por evaluación por evidencias.',
+    ],
+    fuentes: [
+      { nombre: 'Estructura didáctica FTCOCU-236 — CESDE', url: null },
+      { nombre: 'Panel de expertos de pertinencia — CESDE', url: null },
+    ],
+  },
 ];
 
 export const ALINEACION = {
@@ -132,8 +240,9 @@ export const DIDACTICAS = {
 export const TESTEO_EMPRESARIAL = {
   meta: {
     titulo: 'Testeo con empresas del sector TI',
-    metodologia: '8 entrevistas cualitativas semiestructuradas: 3 empresas de software, 1 empresa 360 y 4 empresas de capital humano (Antioquia, 2026).',
-    fuente: 'CESDE · Comfama',
+    metodologia: '8 entrevistas cualitativas semiestructuradas: 3 empresas de software, 1 empresa 360 y 4 empresas de capital humano del sector TI.',
+    fuente: 'CESDE–Comfama, 2026',
+    fuenteDetalle: 'Estudio de testeo empresarial realizado por CESDE en alianza con Comfama, mediante 8 entrevistas cualitativas a empresas del sector TI de Antioquia durante 2026.',
     hallazgoClave: 'El diferencial del junior ya no es cuánto sabe programar, sino qué tan rápido entiende, aprende y resuelve.',
   },
   brechas: [

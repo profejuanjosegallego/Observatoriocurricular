@@ -37,8 +37,18 @@ h1, h2, h3, h4, h5, h6 {
   100% { background-position: 200% 0; }
 }
 
+@keyframes glowPulse {
+  0%, 100% { box-shadow: 0 0 0 0 var(--glow-color, rgba(230, 0, 126, 0)); }
+  50% { box-shadow: 0 0 0 5px var(--glow-color, rgba(230, 0, 126, 0.18)); }
+}
+
 .animate-fade-in {
   animation: fadeIn 0.3s ease-out both;
+}
+
+/* Brillo sutil para invitar a interactuar (p. ej. badges con tooltip). */
+.animate-glow {
+  animation: glowPulse 2.2s ease-in-out infinite;
 }
 
 .animate-slide-up {

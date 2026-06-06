@@ -151,6 +151,8 @@ export default function MateriaPage() {
               onEditRec={handleEditRecomendacion}
               onDeleteRec={handleDeleteRecomendacion}
               onRestoreRec={handleRestoreRecomendacion}
+              onSaveSugerencia={handleSaveSugerencia}
+              onDeleteSugerencia={handleDeleteSugerencia}
               onUpdate={handleFichaUpdate}
             />
           )}

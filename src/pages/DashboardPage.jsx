@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { Link, useOutletContext } from 'react-router-dom';
 import { NIVELES, getMateriasPorNivel } from '../data/materias';
+import { INFORME_PERTINENCIA } from '../data/alineacion';
 
 const SABERES = [
   {
@@ -136,8 +137,8 @@ const EVOLUCION = [
     subtitulo: 'Diseñar la solución',
     color: '#E6007E',
     modelo: 'Agile-First',
-    descripcion: 'El estudiante estructura soluciones completas: levanta requisitos con metodología ágil, diseña backend profesional y construye frontends interactivos.',
-    capacidades: ['Gestionar proyectos con Scrum y Kanban', 'Construir API REST con Spring Boot', 'Programar frontends dinámicos con JavaScript'],
+    descripcion: 'El estudiante construye soluciones robustas: programa en Java aplicando principios de POO y Clean Code, levanta requisitos con metodologías ágiles y desarrolla interfaces dinámicas.',
+    capacidades: ['Programar en Java con principios de POO', 'Escribir código limpio y mantenible (Clean Code)', 'Gestionar proyectos con Scrum y construir frontends con JavaScript'],
     icono: (
       <svg xmlns="http://www.w3.org/2000/svg" className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
@@ -150,8 +151,8 @@ const EVOLUCION = [
     subtitulo: 'Acompañar al cliente',
     color: '#10b981',
     modelo: 'API-First',
-    descripcion: 'El estudiante integra todo: conecta frontend moderno con backend robusto, analiza datos con IA y despliega soluciones en producción, acompañando al cliente de principio a fin.',
-    capacidades: ['Desplegar SPA con React y consumir APIs', 'Analizar datos con Python y generar reportes', 'Asesorar al cliente con fundamento técnico'],
+    descripcion: 'El estudiante integra la solución completa: expone servicios con API REST en Spring Boot, conecta un frontend moderno en React, analiza datos con Python e IA y despliega en producción, acompañando al cliente de principio a fin.',
+    capacidades: ['Construir API REST profesionales con Spring Boot', 'Desplegar SPA con React y consumir servicios', 'Analizar datos con Python e IA para asesorar al cliente'],
     icono: (
       <svg xmlns="http://www.w3.org/2000/svg" className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -206,6 +207,14 @@ const ICONOS = {
   chart: <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>,
   stack: <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2" /></svg>,
   shield: <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>,
+};
+
+const EJE_ICONOS = {
+  'Tecnológico': <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" /></svg>,
+  'Funcional': <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>,
+  'Metodológico': <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" /></svg>,
+  'Humano': <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>,
+  default: <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>,
 };
 
 export default function DashboardPage() {
@@ -396,7 +405,15 @@ export default function DashboardPage() {
 
         {/* Evolución en 3 niveles — Diagrama visual */}
         <div className="mb-6">
-          <h4 className="font-heading font-semibold text-sm text-ink mb-1">Evolución progresiva en 3 niveles</h4>
+          <div className="mb-2">
+            <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-magenta bg-magenta/8 px-2.5 py-1 rounded-full">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+              </svg>
+              Ruta formativa
+            </span>
+          </div>
+          <h4 className="font-heading font-bold text-xl text-ink mb-1.5 tracking-tight">Evolución progresiva en 3 niveles</h4>
           <p className="text-xs text-ink-2 mb-4 max-w-2xl">
             El estudiante atraviesa tres etapas que transforman su perfil desde ejecutor técnico hasta socio estratégico del cliente.
           </p>
@@ -451,9 +468,19 @@ export default function DashboardPage() {
         </div>
 
         {/* Comparativo — cards interactivas */}
-        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-          <h4 className="font-heading font-semibold text-sm text-ink">Comparativo: perfil tradicional vs. Consultor Tech</h4>
-          <div className="flex items-center gap-3 text-[10px] font-bold tracking-wider uppercase">
+        <div className="flex items-end justify-between mb-4 flex-wrap gap-2">
+          <div>
+            <div className="mb-2">
+              <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-magenta bg-magenta/8 px-2.5 py-1 rounded-full">
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" />
+                </svg>
+                Análisis comparativo
+              </span>
+            </div>
+            <h4 className="font-heading font-bold text-xl text-ink tracking-tight">Perfil tradicional <span className="text-ink-2/40 font-semibold">vs.</span> <span className="text-magenta">Consultor Tech</span></h4>
+          </div>
+          <div className="flex items-center gap-3 text-[10px] font-bold tracking-wider uppercase pb-1">
             <div className="flex items-center gap-1.5 text-ink-2">
               <span className="w-2.5 h-2.5 rounded-full bg-gray-300" />
               Asistente
@@ -464,28 +491,40 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {COMPARATIVO.map((row, i) => (
             <div
               key={i}
-              className="bg-white border border-gray-100 rounded-2xl p-5 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 group relative overflow-hidden"
+              className={`bg-white border border-gray-100 rounded-2xl p-5 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 group relative overflow-hidden ${i === COMPARATIVO.length - 1 && COMPARATIVO.length % 2 !== 0 ? 'md:col-span-2' : ''}`}
             >
-              <div className="absolute top-0 right-0 w-20 h-20 bg-magenta/3 rounded-full -translate-y-1/2 translate-x-1/2 group-hover:bg-magenta/8 transition-colors duration-300" />
+              <div className="absolute top-0 right-0 w-24 h-24 bg-magenta/3 rounded-full -translate-y-1/2 translate-x-1/2 group-hover:bg-magenta/8 transition-colors duration-300" />
               <div className="relative">
-                <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center text-ink-2 mb-3 group-hover:bg-magenta/10 group-hover:text-magenta transition-all duration-300">
-                  {row.icono}
-                </div>
-                <h5 className="font-heading font-semibold text-sm text-ink mb-3 group-hover:text-magenta transition-colors duration-300">{row.dimension}</h5>
-
-                <div className="space-y-3">
-                  <div className="flex items-start gap-2">
-                    <span className="shrink-0 mt-1 w-2 h-2 rounded-full bg-gray-300" />
-                    <p className="text-[11px] text-ink-2 leading-relaxed line-through decoration-gray-200 group-hover:decoration-gray-300 transition-colors duration-300">{row.asistente}</p>
+                <div className="flex items-center gap-2.5 mb-4">
+                  <div className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center text-ink-2 group-hover:bg-magenta/10 group-hover:text-magenta transition-all duration-300 shrink-0">
+                    {row.icono}
                   </div>
-                  <div className="flex items-start gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5 shrink-0 mt-0.5 text-magenta" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  <h5 className="font-heading font-bold text-sm text-ink group-hover:text-magenta transition-colors duration-300">{row.dimension}</h5>
+                </div>
+
+                <div className="grid grid-cols-[1fr_auto_1fr] items-stretch gap-2.5">
+                  {/* Perfil asistente */}
+                  <div className="bg-gray-50 border border-gray-100 rounded-xl p-3">
+                    <span className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider text-ink-2/55 mb-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-gray-300" /> Asistente
+                    </span>
+                    <p className="text-[11px] text-ink-2/80 leading-relaxed">{row.asistente}</p>
+                  </div>
+                  {/* Transición */}
+                  <div className="flex items-center justify-center text-magenta/25 group-hover:text-magenta/60 transition-colors duration-300">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
                     </svg>
+                  </div>
+                  {/* Perfil Consultor Tech */}
+                  <div className="bg-magenta/[0.04] border border-magenta/15 rounded-xl p-3">
+                    <span className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider text-magenta mb-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-magenta" /> Consultor Tech
+                    </span>
                     <p className="text-[11px] text-ink font-medium leading-relaxed">{row.consultor}</p>
                   </div>
                 </div>
@@ -493,6 +532,58 @@ export default function DashboardPage() {
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Matriz de brechas del programa — diagnóstico estratégico */}
+      <div>
+        <div className="flex items-center gap-2 mb-2">
+          <div className="w-2 h-6 rounded bg-gradient-to-b from-rose-500 to-magenta" />
+          <h3 className="font-heading font-bold text-lg text-ink">Matriz de brechas del programa</h3>
+        </div>
+        <p className="text-sm text-ink-2 mb-5 max-w-3xl">
+          Diagnóstico estratégico que contrasta la oferta curricular actual con la demanda real del sector TI en cada eje del programa. Es la brújula del Observatorio: señala hacia dónde debe evolucionar la formación.
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {INFORME_PERTINENCIA.ejesBrechas.map((b, i) => (
+            <div key={i} className="bg-white border border-gray-100 rounded-2xl p-5 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 group">
+              <div className="flex items-center gap-2.5 mb-4">
+                <div className="w-9 h-9 rounded-xl bg-magenta/8 flex items-center justify-center text-magenta shrink-0 group-hover:bg-magenta group-hover:text-white transition-all duration-300">
+                  {EJE_ICONOS[b.eje] || EJE_ICONOS.default}
+                </div>
+                <h4 className="font-heading font-bold text-sm text-ink">Eje {b.eje}</h4>
+              </div>
+
+              <div className="grid grid-cols-[1fr_auto_1fr] items-stretch gap-2.5 mb-3">
+                <div className="bg-gray-50 border border-gray-100 rounded-xl p-3">
+                  <span className="block text-[9px] font-bold uppercase tracking-wider text-ink-2/55 mb-1">Oferta actual</span>
+                  <p className="text-[11px] text-ink-2/80 leading-relaxed">{b.actual}</p>
+                </div>
+                <div className="flex items-center justify-center text-magenta/30 group-hover:text-magenta/60 transition-colors duration-300">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                  </svg>
+                </div>
+                <div className="bg-magenta/[0.04] border border-magenta/15 rounded-xl p-3">
+                  <span className="block text-[9px] font-bold uppercase tracking-wider text-magenta mb-1">Demanda del sector</span>
+                  <p className="text-[11px] text-ink font-medium leading-relaxed">{b.demanda}</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-2 bg-amber-50/60 border border-amber-200/50 rounded-xl p-3">
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                </svg>
+                <div>
+                  <span className="block text-[9px] font-bold uppercase tracking-wider text-amber-700/80 mb-0.5">Acción sugerida</span>
+                  <p className="text-[11px] text-ink-2 leading-relaxed">{b.accion}</p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <p className="text-[11px] text-ink-2/50 italic mt-3 max-w-3xl">
+          {INFORME_PERTINENCIA.meta.diagnostico} <span className="not-italic">·</span> Fuente: {INFORME_PERTINENCIA.meta.fuente}.
+        </p>
       </div>
 
       {/* Saberes del programa — Colapsable */}
