@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 340" fill="none">
+  <defs>
+    <linearGradient id="gN1" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#6366f1"/><stop offset="100%" stop-color="#818cf8"/></linearGradient>
+    <linearGradient id="gN2" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#E6007E"/><stop offset="100%" stop-color="#ff4fb0"/></linearGradient>
+    <linearGradient id="gN3" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#10b981"/><stop offset="100%" stop-color="#34d399"/></linearGradient>
+    <filter id="shadow"><feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#000" flood-opacity=".08"/></filter>
+  </defs>
+  <style>
+    text { font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; }
+  </style>
+
+  <!-- Título -->
+  <text x="450" y="32" text-anchor="middle" font-size="15" font-weight="700" fill="#1c1622" letter-spacing="0.5">PROGRESIÓN FORMATIVA — TÉCNICO LABORAL EN DESARROLLO DE SOFTWARE</text>
+  <line x1="150" y1="44" x2="750" y2="44" stroke="#E6007E" stroke-width="2" stroke-opacity="0.3"/>
+
+  <!-- Flechas de conexión -->
+  <path d="M295 180 L320 180" stroke="#9ca3af" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#arrow)"/>
+  <path d="M595 180 L620 180" stroke="#9ca3af" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#arrow)"/>
+  <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#9ca3af"/></marker></defs>
+
+  <!-- Nivel 1 -->
+  <rect x="20" y="60" width="270" height="250" rx="16" fill="white" filter="url(#shadow)" stroke="#6366f1" stroke-width="1.5" stroke-opacity="0.3"/>
+  <rect x="20" y="60" width="270" height="48" rx="16" fill="url(#gN1)"/>
+  <rect x="20" y="92" width="270" height="16" fill="url(#gN1)"/>
+  <text x="155" y="82" text-anchor="middle" font-size="10" font-weight="700" fill="white" letter-spacing="1" text-transform="uppercase">NIVEL I · FUNDAMENTOS</text>
+  <text x="155" y="98" text-anchor="middle" font-size="11" font-weight="600" fill="rgba(255,255,255,0.85)">El Consultor como Intérprete</text>
+  <rect x="80" y="118" width="150" height="22" rx="11" fill="#6366f1" fill-opacity="0.1" stroke="#6366f1" stroke-width="1"/>
+  <text x="155" y="133" text-anchor="middle" font-size="10" font-weight="700" fill="#6366f1">DATA-FIRST</text>
+  <text x="40" y="165" font-size="10" fill="#6366f1" font-weight="700">●</text><text x="52" y="165" font-size="10" fill="#3a2f43">Lógica de Programación</text>
+  <text x="40" y="185" font-size="10" fill="#6366f1" font-weight="700">●</text><text x="52" y="185" font-size="10" fill="#3a2f43">Introducción a la Prog.</text>
+  <text x="40" y="205" font-size="10" fill="#6366f1" font-weight="700">★</text><text x="52" y="205" font-size="10" fill="#3a2f43" font-weight="600">Gestión de Bases de Datos</text>
+  <text x="52" y="218" font-size="8" fill="#6366f1" font-style="italic">Módulo líder</text>
+  <line x1="40" y1="232" x2="270" y2="232" stroke="#e5e7eb" stroke-width="1"/>
+  <text x="40" y="252" font-size="9" fill="#3a2f43" font-weight="600">Integración:</text>
+  <text x="40" y="266" font-size="8.5" fill="#6b7280">Modelo Relacional como</text>
+  <text x="40" y="278" font-size="8.5" fill="#6b7280">contrato maestro entre capas</text>
+  <text x="40" y="300" font-size="9" fill="#6366f1" font-weight="700">S6 → S12 → S17</text>
+
+  <!-- Nivel 2 -->
+  <rect x="320" y="60" width="270" height="250" rx="16" fill="white" filter="url(#shadow)" stroke="#E6007E" stroke-width="1.5" stroke-opacity="0.3"/>
+  <rect x="320" y="60" width="270" height="48" rx="16" fill="url(#gN2)"/>
+  <rect x="320" y="92" width="270" height="16" fill="url(#gN2)"/>
+  <text x="455" y="82" text-anchor="middle" font-size="10" font-weight="700" fill="white" letter-spacing="1">NIVEL II · CONSTRUCCIÓN</text>
+  <text x="455" y="98" text-anchor="middle" font-size="11" font-weight="600" fill="rgba(255,255,255,0.85)">El Arquitecto de Soluciones</text>
+  <rect x="380" y="118" width="150" height="22" rx="11" fill="#E6007E" fill-opacity="0.1" stroke="#E6007E" stroke-width="1"/>
+  <text x="455" y="133" text-anchor="middle" font-size="10" font-weight="700" fill="#E6007E">AGILE-FIRST</text>
+  <text x="340" y="165" font-size="10" fill="#E6007E" font-weight="700">★</text><text x="352" y="165" font-size="10" fill="#3a2f43" font-weight="600">Metodologías Ágiles</text>
+  <text x="352" y="178" font-size="8" fill="#E6007E" font-style="italic">Módulo líder (PMO)</text>
+  <text x="340" y="198" font-size="10" fill="#E6007E" font-weight="700">●</text><text x="352" y="198" font-size="10" fill="#3a2f43">Backend I (Java POO)</text>
+  <text x="340" y="218" font-size="10" fill="#E6007E" font-weight="700">●</text><text x="352" y="218" font-size="10" fill="#3a2f43">Frontend I (JavaScript)</text>
+  <line x1="340" y1="232" x2="570" y2="232" stroke="#e5e7eb" stroke-width="1"/>
+  <text x="340" y="252" font-size="9" fill="#3a2f43" font-weight="600">Integración:</text>
+  <text x="340" y="266" font-size="8.5" fill="#6b7280">Scrum como sistema operativo.</text>
+  <text x="340" y="278" font-size="8.5" fill="#6b7280">Back y Front desacoplados.</text>
+  <text x="340" y="300" font-size="9" fill="#E6007E" font-weight="700">S6 → S12 → S17</text>
+
+  <!-- Nivel 3 -->
+  <rect x="620" y="60" width="270" height="250" rx="16" fill="white" filter="url(#shadow)" stroke="#10b981" stroke-width="1.5" stroke-opacity="0.3"/>
+  <rect x="620" y="60" width="270" height="48" rx="16" fill="url(#gN3)"/>
+  <rect x="620" y="92" width="270" height="16" fill="url(#gN3)"/>
+  <text x="755" y="82" text-anchor="middle" font-size="10" font-weight="700" fill="white" letter-spacing="1">NIVEL III · ESPECIALIZACIÓN</text>
+  <text x="755" y="98" text-anchor="middle" font-size="11" font-weight="600" fill="rgba(255,255,255,0.85)">El Socio Tecnológico</text>
+  <rect x="680" y="118" width="150" height="22" rx="11" fill="#10b981" fill-opacity="0.1" stroke="#10b981" stroke-width="1"/>
+  <text x="755" y="133" text-anchor="middle" font-size="10" font-weight="700" fill="#10b981">API-FIRST</text>
+  <text x="640" y="165" font-size="10" fill="#10b981" font-weight="700">★</text><text x="652" y="165" font-size="10" fill="#3a2f43" font-weight="600">Backend II (Spring Boot)</text>
+  <text x="652" y="178" font-size="8" fill="#10b981" font-style="italic">Módulo líder (Arquitecto)</text>
+  <text x="640" y="198" font-size="10" fill="#10b981" font-weight="700">●</text><text x="652" y="198" font-size="10" fill="#3a2f43">Frontend II (React)</text>
+  <text x="640" y="218" font-size="10" fill="#10b981" font-weight="700">●</text><text x="652" y="218" font-size="10" fill="#3a2f43">Nuevas Tecnologías (Python)</text>
+  <line x1="640" y1="232" x2="870" y2="232" stroke="#e5e7eb" stroke-width="1"/>
+  <text x="640" y="252" font-size="9" fill="#3a2f43" font-weight="600">Integración:</text>
+  <text x="640" y="266" font-size="8.5" fill="#6b7280">API REST como fuente única.</text>
+  <text x="640" y="278" font-size="8.5" fill="#6b7280">Full-Stack total con GitFlow.</text>
+  <text x="640" y="300" font-size="9" fill="#10b981" font-weight="700">S6 → S12 → S17</text>
+</svg>
