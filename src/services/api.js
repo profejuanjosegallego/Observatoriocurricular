@@ -60,15 +60,15 @@ export const planeadoresService = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     }),
-  backupEstado: (materiaId) => request(`/api/planeadores-backup?materia=${materiaId}`),
+  backupEstado: (materiaId) => request(`/api/planeadores?action=backup&materia=${materiaId}`),
   guardarBackup: (materiaId) =>
-    request(`/api/planeadores-backup?materia=${materiaId}`, {
+    request(`/api/planeadores?action=backup&materia=${materiaId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'save' }),
     }),
   restaurarBackup: (materiaId) =>
-    request(`/api/planeadores-backup?materia=${materiaId}`, {
+    request(`/api/planeadores?action=backup&materia=${materiaId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'restore' }),
@@ -81,9 +81,9 @@ export const integradoresService = {
 };
 
 export const comentariosService = {
-  listar: (materiaId) => request(`/api/comentarios?materia=${materiaId}`),
+  listar: (materiaId) => request(`/api/planeadores?action=comentarios&materia=${materiaId}`),
   guardar: (body) =>
-    request('/api/comentarios', {
+    request('/api/planeadores?action=comentarios', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
