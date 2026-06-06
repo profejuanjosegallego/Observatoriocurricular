@@ -1,14 +1,6 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { Link, useOutletContext } from 'react-router-dom';
 import { NIVELES, getMateriasPorNivel } from '../data/materias';
-
-const AUDIO_SCRIPT = `El Consultor Tech es mucho más que un programador.
-Mientras que un asistente tradicional en desarrollo de software se limita a ejecutar tareas técnicas asignadas por un líder, el Consultor Tech interpreta las necesidades del cliente, diseña soluciones tecnológicas a medida y acompaña su implementación de principio a fin.
-Se diferencia por combinar cuatro pilares fundamentales: dominio técnico, pensamiento estratégico, comunicación efectiva y visión integral del proyecto.
-En CESDE, el programa forma este perfil de manera progresiva a través de tres niveles.
-Primero como Intérprete, aprendiendo a comprender el problema del cliente.
-Luego como Arquitecto, estructurando soluciones completas con metodología ágil.
-Y finalmente como Socio Tecnológico, acompañando al cliente con fundamento técnico y visión de negocio, desde el diagnóstico hasta el despliegue en producción.`;
 
 const SABERES = [
   {
@@ -220,54 +212,39 @@ export default function DashboardPage() {
   const { aporteCounts } = useOutletContext();
   const [saberesOpen, setSaberesOpen] = useState(false);
   const [audioState, setAudioState] = useState('idle');
-  const utterRef = useRef(null);
+  const audioRef = useRef(null);
 
-  const getSpanishFemaleVoice = useCallback(() => {
-    const voices = window.speechSynthesis.getVoices();
-    const esVoices = voices.filter(v => v.lang.startsWith('es'));
-    const female = esVoices.find(v =>
-      /female|femenin|mujer|paulina|mónica|elena|sabina|lupe|penélope|lucia/i.test(v.name)
-    );
-    return female || esVoices[0] || null;
+  const getAudio = useCallback(() => {
+    if (!audioRef.current) {
+      const a = new Audio('/consultor-tech.mp3');
+      a.addEventListener('ended', () => setAudioState('idle'));
+      a.addEventListener('error', () => setAudioState('idle'));
+      audioRef.current = a;
+    }
+    return audioRef.current;
   }, []);
 
   const handleAudio = useCallback(() => {
-    const synth = window.speechSynthesis;
-
+    const audio = getAudio();
     if (audioState === 'playing') {
-      synth.pause();
+      audio.pause();
       setAudioState('paused');
-      return;
-    }
-
-    if (audioState === 'paused') {
-      synth.resume();
+    } else if (audioState === 'paused') {
+      audio.play();
       setAudioState('playing');
-      return;
+    } else {
+      audio.currentTime = 0;
+      audio.play();
+      setAudioState('playing');
     }
-
-    synth.cancel();
-    const utter = new SpeechSynthesisUtterance(AUDIO_SCRIPT);
-    utter.lang = 'es-MX';
-    utter.rate = 0.92;
-    utter.pitch = 1.1;
-    const voice = getSpanishFemaleVoice();
-    if (voice) utter.voice = voice;
-    utter.onend = () => setAudioState('idle');
-    utter.onerror = () => setAudioState('idle');
-    utterRef.current = utter;
-    synth.speak(utter);
-    setAudioState('playing');
-  }, [audioState, getSpanishFemaleVoice]);
+  }, [audioState, getAudio]);
 
   const stopAudio = useCallback(() => {
-    window.speechSynthesis.cancel();
+    const audio = getAudio();
+    audio.pause();
+    audio.currentTime = 0;
     setAudioState('idle');
-  }, []);
-
-  useEffect(() => {
-    return () => window.speechSynthesis.cancel();
-  }, []);
+  }, [getAudio]);
 
   return (
     <div className="space-y-8 animate-fade-in">
