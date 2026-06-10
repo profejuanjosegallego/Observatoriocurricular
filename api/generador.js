@@ -213,6 +213,169 @@ function parseDidacticas(raw, nivel) {
   return result;
 }
 
+const NIVEL_ALCANCE = {
+  1: {
+    permitido: 'Modelo Entidad-Relación y Modelo Relacional (normalización de 1FN a 3FN); SQL: DDL (CREATE TABLE, claves primarias y foráneas, integridad referencial), DML (INSERT, SELECT, UPDATE, DELETE), JOINs simples, funciones agregadas (COUNT, SUM, AVG) y procedimientos almacenados básicos; HTML5 semántico (header, main, section, article, formularios, tablas); CSS3 (modelo de caja, Flexbox, Grid, diseño responsive con media queries o un framework como Bootstrap o Tailwind); pseudocódigo y diagramas de flujo; Java básico de consola (variables, tipos de datos, operadores, condicionales, ciclos, arreglos, funciones, menús con switch y while, simulación de operaciones CRUD con arreglos en memoria).',
+    prohibido: 'API REST, endpoints, verbos HTTP, JSON como contrato, Spring Boot, JPA, Hibernate, cualquier framework de backend, React, Angular, Vue, SPA, JavaScript del lado del cliente (manipulación del DOM, eventos, fetch, async/await, promesas, localStorage), Python, Pandas, analítica de datos, programación orientada a objetos avanzada (herencia, polimorfismo, clases abstractas, interfaces), Git o GitFlow, Docker, despliegue en la nube, autenticación o JWT.',
+  },
+  2: {
+    permitido: 'Metodologías ágiles (Scrum y Kanban): historias de usuario con criterios de aceptación, Product Backlog, Sprint Planning, Daily Standup, Sprint Review, Retrospectiva, tablero Kanban y burndown chart; Java con Programación Orientada a Objetos (clases, objetos, encapsulamiento, constructores, getters y setters, herencia, polimorfismo, clases abstractas, interfaces, ArrayList y colecciones) y persistencia con JPA + Hibernate (CRUD); JavaScript del lado del cliente (manipulación del DOM, eventos, fetch, async/await, promesas, localStorage); HTML y CSS ya dominados del Nivel I.',
+    prohibido: 'Spring Boot, API REST formal documentada con Swagger, DTOs, JUnit, React o cualquier SPA, React Router, Python, Pandas, Matplotlib, analítica de datos, Git/GitFlow como contenido central, microservicios, Docker o despliegue en la nube (esos contenidos pertenecen al Nivel III).',
+  },
+  3: {
+    permitido: 'Spring Boot con arquitectura por capas; API REST con controladores (@GetMapping, @PostMapping, @PutMapping, @DeleteMapping), capa de servicios e inyección de dependencias; entidades JPA con relaciones; repositorios con JPQL; DTOs con validación; documentación con Swagger/OpenAPI; pruebas unitarias con JUnit; React (componentes funcionales, useState, useEffect, React Router, consumo de la API con fetch o axios); Python (Pandas, Matplotlib, Seaborn) para análisis y visualización de datos; Git y GitFlow.',
+    prohibido: 'Tecnologías fuera del alcance del programa técnico: Kubernetes, aprendizaje automático o inteligencia artificial, lenguajes no vistos (Go, Rust, C#), arquitecturas de microservicios con colas de mensajería, o cualquier herramienta que no haga parte de las materias del nivel.',
+  },
+};
+
+function buildBootcampPrompt(reto, nivel) {
+  const nv = NIVEL_CONTEXTO[nivel];
+  const al = NIVEL_ALCANCE[nivel];
+  const materiasList = nv.materias.map(m => `${m} (${MATERIAS_INFO[m].nombre})`).join(', ');
+
+  return `RETO EMPRESARIAL: "${reto}"
+NIVEL: ${NIVELES[nivel].nombre}
+MODELO: ${nv.modelo} — ${nv.perfil}
+MATERIAS DEL NIVEL (y solo estas): ${materiasList}
+
+ALCANCE TECNICO PERMITIDO (los estudiantes SOLO saben y solo deben usar esto):
+${al.permitido}
+
+TECNOLOGIAS Y CONCEPTOS PROHIBIDOS (NO pueden aparecer bajo ninguna circunstancia):
+${al.prohibido}
+
+Diseña la AGENDA y la RUBRICA de un BOOTCAMP de un día (jornada completa de 8:00 a 17:00) en el que los estudiantes resuelven el reto empresarial "${reto}" aplicando ÚNICAMENTE el alcance técnico permitido del nivel. El bootcamp es el evento de cierre del nivel: una empresa invitada del territorio antioqueño presenta un reto real y, al final del día, los equipos sustentan su solución ante el cliente.
+
+REGLAS CRITICAS — léelas antes de escribir:
+1. ADHERENCIA AL NIVEL: usa exclusivamente el alcance técnico permitido. Si mencionas cualquier cosa de la lista de prohibidos, la respuesta es incorrecta. Por ejemplo, en el Nivel I jamás se habla de API, de JavaScript ni de frameworks: se trabaja con SQL, HTML/CSS y lógica/Java de consola.
+2. SE EXTREMADAMENTE EXPLICITO: cada actividad y cada entregable debe decir EXACTAMENTE qué construye el estudiante, con artefactos concretos del dominio "${reto}" y nombres reales (tablas con sus columnas, archivos .html con sus secciones, funciones con sus parámetros, consultas SQL con sus cláusulas, historias de usuario redactadas, clases con sus atributos). NUNCA uses frases vagas como "programar la solución", "hacer la base de datos" o "desarrollar el sistema".
+3. La jornada incluye, en este orden: presentación del reto por la empresa invitada, conformación de equipos y análisis del problema, uno o dos bloques de desarrollo técnico en la mañana, un almuerzo (12:00 – 13:00), refinamiento y preparación de la sustentación en la tarde, la sustentación ante la empresa y un cierre con retroalimentación.
+4. Cada bloque de la agenda debe tener entre 2 y 4 temáticas concretas.
+5. La RUBRICA debe tener exactamente 5 criterios cuyos pesos sumen 100, con tres niveles de desempeño claramente diferenciados y observables.
+6. Redacta en español impecable, en tercera persona, sin markdown, sin asteriscos ni negritas.
+
+Responde EXACTAMENTE con este formato, respetando cada encabezado en su propia línea:
+
+NOMBRE: <nombre del bootcamp para este reto, máximo 8 palabras>
+OBJETIVO: <objetivo del bootcamp en una o dos oraciones, vinculado al reto>
+RETO: <reformulación del reto empresarial contextualizada, de 2 a 3 líneas, tal como lo presentaría la empresa invitada>
+
+AGENDA:
+BLOQUE
+HORA: 8:00 – 8:30
+ACTIVIDAD: <nombre de la actividad>
+TEMATICAS: <temática concreta 1> || <temática concreta 2> || <temática concreta 3>
+BLOQUE
+HORA: 8:30 – 9:30
+ACTIVIDAD: <nombre de la actividad>
+TEMATICAS: <temática concreta 1> || <temática concreta 2>
+(continúa con tantos bloques BLOQUE como necesites hasta cubrir la jornada hasta las 17:00; separa cada bloque con una línea que contenga únicamente la palabra BLOQUE)
+
+COMPETENCIAS:
+COMP: <competencia observable que se demuestra 1>
+COMP: <competencia 2>
+COMP: <competencia 3>
+COMP: <competencia 4>
+COMP: <competencia 5>
+
+ENTREGABLES:
+ENT: <entregable concreto y verificable 1, nombrando el artefacto exacto que se entrega>
+ENT: <entregable 2>
+ENT: <entregable 3>
+ENT: <entregable 4>
+ENT: <entregable 5>
+
+RUBRICA:
+CRITERIO
+NOMBRE: <nombre del criterio de evaluación>
+PESO: <número entero de porcentaje>
+SUPERIOR: <descriptor observable del desempeño superior>
+ACEPTABLE: <descriptor observable del desempeño aceptable>
+INICIAL: <descriptor observable del desempeño en desarrollo>
+CRITERIO
+(repite hasta tener exactamente 5 criterios cuyos pesos sumen 100, separando cada uno con una línea que contenga únicamente la palabra CRITERIO)`;
+}
+
+function parseBootcamp(raw, nivel) {
+  const nv = NIVEL_CONTEXTO[nivel];
+  const g = (key) => {
+    const re = new RegExp(key + ':\\s*(.+)', 'i');
+    const m = raw.match(re);
+    return m ? m[1].trim() : '';
+  };
+
+  // Reto (puede ocupar varias líneas hasta la sección AGENDA)
+  const retoM = raw.match(/RETO:\s*([\s\S]*?)(?=\n\s*AGENDA:|$)/i);
+  const reto = retoM ? retoM[1].trim().replace(/\s*\n+\s*/g, ' ') : '';
+
+  // Agenda
+  const agenda = [];
+  const agendaSec = raw.match(/AGENDA:([\s\S]*?)(?=COMPETENCIAS:|ENTREGABLES:|RUBRICA:|$)/i);
+  if (agendaSec) {
+    const blocks = agendaSec[1].split(/^[ \t]*BLOQUE[ \t]*$/im).map(b => b.trim()).filter(Boolean);
+    for (const block of blocks) {
+      const horaM = block.match(/HORA:\s*(.+)/i);
+      const actM = block.match(/ACTIVIDAD:\s*(.+)/i);
+      const temM = block.match(/TEMATICAS:\s*([\s\S]+)/i);
+      if (!horaM || !actM) continue;
+      const tematicas = temM
+        ? temM[1].split('||').map(t => t.trim().replace(/\s*\n+\s*/g, ' ')).filter(Boolean)
+        : [];
+      agenda.push({ hora: horaM[1].trim(), actividad: actM[1].trim(), tematicas });
+    }
+  }
+
+  // Competencias
+  const competencias = [];
+  const compSec = raw.match(/COMPETENCIAS:([\s\S]*?)(?=ENTREGABLES:|RUBRICA:|$)/i);
+  if (compSec) {
+    for (const m of compSec[1].matchAll(/COMP:\s*(.+)/gi)) competencias.push(m[1].trim());
+  }
+
+  // Entregables
+  const entregables = [];
+  const entSec = raw.match(/ENTREGABLES:([\s\S]*?)(?=RUBRICA:|$)/i);
+  if (entSec) {
+    for (const m of entSec[1].matchAll(/ENT:\s*(.+)/gi)) entregables.push(m[1].trim());
+  }
+
+  // Rúbrica
+  const rubrica = [];
+  const rubSec = raw.match(/RUBRICA:([\s\S]*)$/i);
+  if (rubSec) {
+    const blocks = rubSec[1].split(/^[ \t]*CRITERIO[ \t]*$/im).map(b => b.trim()).filter(Boolean);
+    const sub = (block, key) => {
+      const re = new RegExp(key + ':\\s*([\\s\\S]*?)(?=\\n[ \\t]*(?:NOMBRE|PESO|SUPERIOR|ACEPTABLE|INICIAL):|$)', 'i');
+      const m = block.match(re);
+      return m ? m[1].trim().replace(/\s*\n+\s*/g, ' ') : '';
+    };
+    for (const block of blocks) {
+      const nombreM = block.match(/NOMBRE:\s*(.+)/i);
+      if (!nombreM) continue;
+      const pesoM = block.match(/PESO:\s*(\d+)/i);
+      rubrica.push({
+        criterio: nombreM[1].trim(),
+        peso: pesoM ? parseInt(pesoM[1]) : null,
+        superior: sub(block, 'SUPERIOR'),
+        aceptable: sub(block, 'ACEPTABLE'),
+        inicial: sub(block, 'INICIAL'),
+      });
+    }
+  }
+
+  return {
+    nombre: g('NOMBRE'),
+    objetivo: g('OBJETIVO'),
+    reto,
+    agenda,
+    competencias,
+    entregables,
+    rubrica,
+    materias: nv.materias,
+    modelo: nv.modelo,
+  };
+}
+
 async function callGroq(systemPrompt, userPrompt) {
   const key = process.env.GROQ_API_KEY;
   if (!key) throw new Error('Falta la variable de entorno GROQ_API_KEY');
@@ -283,6 +446,13 @@ module.exports = async (req, res) => {
       const { content: raw, usage } = await callGroqWithRetry(SYSTEM, prompt);
       const didacticas = parseDidacticas(raw, nv);
       return res.status(200).json({ didacticas, raw, usage });
+    }
+
+    if (tipo === 'bootcamp') {
+      const prompt = buildBootcampPrompt(idea.trim(), nv);
+      const { content: raw, usage } = await callGroqWithRetry(SYSTEM, prompt);
+      const bootcamp = parseBootcamp(raw, nv);
+      return res.status(200).json({ bootcamp, raw, usage });
     }
 
     const prompt = buildProyectoPrompt(idea.trim(), nv);
