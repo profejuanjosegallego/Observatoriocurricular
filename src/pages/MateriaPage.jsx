@@ -1,13 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useParams, useOutletContext, Link } from 'react-router-dom';
 import { getMateria } from '../data/materias';
-import { aportesService, definicionService, materiasService, sugerenciasService, recomendacionesService } from '../services/api';
+import { aportesService, definicionService, materiasService, sugerenciasService, recomendacionesService, sintesisService } from '../services/api';
 import { useUser } from '../context/UserContext';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import MateriaFicha from '../components/materia/MateriaFicha';
 import AporteCard from '../components/materia/AporteCard';
 import AporteForm from '../components/materia/AporteForm';
-import SintesisPanel from '../components/materia/SintesisPanel';
 import SugerenciasForm from '../components/materia/SugerenciasForm';
 import PlaneadorTable from '../components/planeador/PlaneadorTable';
 import IntegradorPanel from '../components/materia/IntegradorPanel';
@@ -21,6 +20,16 @@ const TABS = [
   { id: 'integrador', label: 'Integrador' },
   { id: 'bootcamp',   label: 'Bootcamp' },
 ];
+
+// Un aporte cuenta para la definición colaborativa con que tenga contenido en al menos 1 campo,
+// siempre que el texto sea sustancial (evita registros triviales como "prueba").
+function aporteValido(a) {
+  if (!a) return false;
+  const campos = [a.comprension, a.saber, a.saberHacer, a.saberSer].map(c => (c || '').trim());
+  const conContenido = campos.filter(Boolean).length;
+  const longitudTotal = campos.join(' ').trim().length;
+  return conContenido >= 1 && longitudTotal >= 12;
+}
 
 export default function MateriaPage() {
   const { materiaId } = useParams();
@@ -66,6 +75,24 @@ export default function MateriaPage() {
     const updated = await aportesService.listar(materiaId);
     setAportes(updated);
     refreshCounts?.();
+    // La definición del consultor se regenera con IA solo si hay al menos un aporte válido
+    // (con contenido en 2+ campos). Un aporte trivial ("prueba") no dispara la generación.
+    if (updated.filter(aporteValido).length >= 1) regenerarDefinicion();
+  }
+
+  // Genera con IA la "Relación con el Consultor Tech" desde los aportes y la guarda.
+  // Solo se ejecuta al guardar un aporte (no en cada carga); el resultado queda almacenado.
+  async function regenerarDefinicion() {
+    try {
+      const data = await sintesisService.generar(materiaId);
+      if (!data?.sintesis) return;
+      await definicionService.guardar({ materiaId, definicion: data.sintesis });
+      await materiasService.guardar({ materiaId, relacionConsultorTech: data.sintesis, editadoPor: user?.nombre || 'Definición colaborativa (IA)' });
+      setDefiniciones(prev => ({ ...prev, [materiaId]: data.sintesis }));
+      handleFichaUpdate();
+    } catch (e) {
+      // noop: si la IA falla, se conserva la definición previa
+    }
   }
 
   async function handleEditRecomendacion(indice, datos) {
@@ -148,6 +175,7 @@ export default function MateriaPage() {
             <MateriaFicha
               materiaId={materiaId}
               materiaData={materiaData}
+              aportesCount={aportes.filter(aporteValido).length}
               sugerenciasDocentes={sugerencias}
               recOverrides={recOverrides}
               onEditRec={handleEditRecomendacion}
@@ -184,6 +212,20 @@ export default function MateriaPage() {
                 onSave={handleSaveAporte}
               />
 
+              <p className="text-xs text-ink-2/70 italic mt-6">
+                La definición única del consultor se construye automáticamente a partir de estos aportes y aparece en la pestaña <strong>Ficha general</strong>, en «Relación con el Consultor Tech». Se actualiza cada vez que un docente guarda un aporte.
+              </p>
+            </>
+          )}
+
+          {tab === 'planeador' && (
+            <>
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-2 h-5 rounded bg-gradient-to-b from-magenta to-magenta-soft" />
+                <h3 className="font-heading font-semibold text-base">Planeador semanal — 18 semanas</h3>
+              </div>
+              <PlaneadorTable materiaId={materiaId} />
+
               <div className="flex items-center gap-2 mt-8 mb-2">
                 <div className="w-2 h-5 rounded bg-gradient-to-b from-amber-400 to-orange-400" />
                 <h3 className="font-heading font-semibold text-base">Sugerencias para el planeador</h3>
@@ -197,27 +239,6 @@ export default function MateriaPage() {
                 onSave={handleSaveSugerencia}
                 onDelete={handleDeleteSugerencia}
               />
-
-              <div className="flex items-center gap-2 mt-8 mb-2">
-                <div className="w-2 h-5 rounded bg-gradient-to-b from-magenta to-magenta-soft" />
-                <h3 className="font-heading font-semibold text-base">Definición única del consultor (construcción colectiva)</h3>
-              </div>
-              <SintesisPanel
-                materiaId={materiaId}
-                materiaName={m.nombre}
-                definicion={definiciones[materiaId]}
-                onFichaActualizada={handleFichaUpdate}
-              />
-            </>
-          )}
-
-          {tab === 'planeador' && (
-            <>
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-2 h-5 rounded bg-gradient-to-b from-magenta to-magenta-soft" />
-                <h3 className="font-heading font-semibold text-base">Planeador semanal — 18 semanas</h3>
-              </div>
-              <PlaneadorTable materiaId={materiaId} />
             </>
           )}
 

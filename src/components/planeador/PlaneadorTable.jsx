@@ -262,7 +262,10 @@ export default function PlaneadorTable({ materiaId }) {
   const [backupInfo, setBackupInfo] = useState(null);
   const [confirmRestore, setConfirmRestore] = useState(false);
   const [restoring, setRestoring] = useState(false);
+  const [gruposAbiertos, setGruposAbiertos] = useState({});
   const canEdit = !!user?.nombre;
+
+  const toggleGrupo = (gi) => setGruposAbiertos(p => ({ ...p, [gi]: !p[gi] }));
 
   useEffect(() => {
     setLoading(true);
@@ -509,24 +512,32 @@ export default function PlaneadorTable({ materiaId }) {
       {/* Grouped blocks */}
       {groups.map((group, gi) => (
         <div key={gi} className="rounded-xl border border-magenta/12 overflow-hidden">
-          {/* Unit header */}
-          <div className="bg-gradient-to-r from-magenta to-magenta-dark px-5 py-3">
-            <h3 className="text-white font-semibold text-sm tracking-wide">
-              {group.unidad}
-            </h3>
-            <p className="text-white/70 text-xs mt-0.5">
-              {group.semanas.length === 1
-                ? `Semana ${group.semanas[0].semana}`
-                : `Semanas ${group.semanas[0].semana} – ${group.semanas[group.semanas.length - 1].semana}`}
-            </p>
-          </div>
+          {/* Unit header (colapsable) */}
+          <button
+            type="button"
+            onClick={() => toggleGrupo(gi)}
+            className="w-full text-left bg-gradient-to-r from-magenta to-magenta-dark px-5 py-3 flex items-center gap-3 cursor-pointer"
+          >
+            <div className="flex-1 min-w-0">
+              <h3 className="text-white font-semibold text-sm tracking-wide">
+                {group.unidad}
+              </h3>
+              <p className="text-white/70 text-xs mt-0.5">
+                {group.semanas.length === 1
+                  ? `Semana ${group.semanas[0].semana}`
+                  : `Semanas ${group.semanas[0].semana} – ${group.semanas[group.semanas.length - 1].semana}`}
+              </p>
+            </div>
+            <svg xmlns="http://www.w3.org/2000/svg" className={`w-5 h-5 text-white shrink-0 transition-transform duration-300 ${gruposAbiertos[gi] ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
 
           {/* Week cards */}
+          {gruposAbiertos[gi] && (
           <div className="divide-y divide-magenta/8">
             {group.semanas.map(sem => {
               const temas = sem._temas;
-              const coms = comentariosDeSemana(sem.semana);
-              const isOpen = openWeek === sem.semana;
               const isSaving = saving === sem.semana;
 
               return (
@@ -598,85 +609,12 @@ export default function PlaneadorTable({ materiaId }) {
                       onSave={nuevoTexto => editarResultado(sem._idx, nuevoTexto)}
                     />
 
-                    {/* Comments toggle */}
-                    <div className="mt-3 ml-11">
-                      <button
-                        onClick={() => {
-                          setOpenWeek(isOpen ? null : sem.semana);
-                          setTextoComentario('');
-                        }}
-                        className="inline-flex items-center gap-1.5 text-xs text-ink-2 hover:text-magenta transition-colors duration-200 cursor-pointer"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
-                        </svg>
-                        {coms.length > 0
-                          ? `${coms.length} sugerencia${coms.length > 1 ? 's' : ''}`
-                          : 'Sugerencias'}
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          className={`w-3 h-3 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
-                          fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                        </svg>
-                      </button>
-                    </div>
                   </div>
-
-                  {/* Expanded comments section */}
-                  {isOpen && (
-                    <div className="px-5 pb-4 animate-fade-in">
-                      <div className="ml-11 border-t border-magenta/8 pt-3 space-y-3">
-                        {coms.length > 0 && (
-                          <div className="space-y-2">
-                            {coms.map((c, ci) => (
-                              <div key={ci} className="bg-mist rounded-lg px-3 py-2.5">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <span className="w-5 h-5 rounded-full bg-magenta/20 text-magenta flex items-center justify-center text-[10px] font-bold">
-                                    {(c.autor || '?')[0].toUpperCase()}
-                                  </span>
-                                  <span className="text-xs font-semibold text-ink">{c.autor}</span>
-                                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${ROL_COLORS[c.rol] || ROL_COLORS.docente}`}>
-                                    {c.rol}
-                                  </span>
-                                  <span className="text-[10px] text-ink-2/50 ml-auto">{formatFecha(c.createdAt)}</span>
-                                </div>
-                                <p className="text-xs text-ink-2 leading-relaxed ml-7">{c.texto}</p>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-
-                        {user?.nombre ? (
-                          <div className="flex gap-2">
-                            <textarea
-                              value={textoComentario}
-                              onChange={e => setTextoComentario(e.target.value)}
-                              placeholder="Escriba una sugerencia o cambio para esta semana…"
-                              rows={2}
-                              className="flex-1 px-3 py-2 text-xs border border-magenta/20 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-magenta/20 focus:border-magenta resize-none transition-all duration-200"
-                            />
-                            <button
-                              onClick={() => enviarComentario(sem.semana)}
-                              disabled={enviando || !textoComentario.trim()}
-                              className="self-end px-4 py-2 bg-magenta text-white text-xs font-semibold rounded-lg hover:bg-magenta-dark disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200 cursor-pointer shrink-0"
-                            >
-                              {enviando ? 'Enviando…' : 'Enviar'}
-                            </button>
-                          </div>
-                        ) : (
-                          <p className="text-xs text-ink-2/50 italic">
-                            Identifíquese primero para agregar sugerencias.
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  )}
                 </div>
               );
             })}
           </div>
+          )}
         </div>
       ))}
 

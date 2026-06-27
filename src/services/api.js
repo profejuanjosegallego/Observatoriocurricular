@@ -39,6 +39,12 @@ export const sintesisService = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ materiaId, soloPrompt: true }),
     }),
+  clasificarSugerencia: (materiaId, texto) =>
+    request('/api/sintesis', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ materiaId, clasificar: true, texto }),
+    }),
 };
 
 export const materiasService = {

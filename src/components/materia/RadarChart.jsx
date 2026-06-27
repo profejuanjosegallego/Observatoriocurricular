@@ -52,8 +52,9 @@ export default function RadarChart({ scores, labels, highlight = null, maxWidthC
     const angle = -Math.PI / 2 + (2 * Math.PI * i) / n;
     const deg = (angle * 180) / Math.PI;
     if (deg > -100 && deg < -80) return 'middle';
+    if (deg > 80 && deg < 100) return 'middle';
     if (deg >= -80 && deg < 10) return 'start';
-    if (deg >= 10 && deg < 100) return 'start';
+    if (deg >= 10 && deg < 80) return 'start';
     if (deg >= 100 && deg < 170) return 'end';
     return 'end';
   }
@@ -72,13 +73,14 @@ export default function RadarChart({ scores, labels, highlight = null, maxWidthC
   }
 
   const dataPoints = scores.map((v, i) => polarToXY(i, v));
+  const dataPolygon = dataPoints.map(p => `${p.x},${p.y}`).join(' ');
   const axisEnds = Array.from({ length: n }, (_, i) => polarToXY(i, 100));
   const labelPts = Array.from({ length: n }, (_, i) => polarToXY(i, 114));
   const avg = Math.round(scores.reduce((a, b) => a + b, 0) / n);
 
   return (
     <div className={`relative w-full ${maxWidthClass} mx-auto`}>
-      <svg viewBox="15 25 490 355" className="w-full block" role="img" aria-label="Gráfica de alineación curricular">
+      <svg viewBox="-15 20 550 400" className="w-full block" role="img" aria-label="Gráfica de alineación curricular">
         {levels.map(l => (
           <polygon
             key={l}
@@ -114,7 +116,7 @@ export default function RadarChart({ scores, labels, highlight = null, maxWidthC
           />
         ))}
 
-        <polygon points={polygon(scores)} fill={COLORS.fill} stroke={COLORS.stroke} strokeWidth={3.5} strokeLinejoin="round" />
+        <polygon points={dataPolygon} fill={COLORS.fill} stroke={COLORS.stroke} strokeWidth={3.5} strokeLinejoin="round" />
 
         {dataPoints.map((p, i) => {
           const hl = highlight === i;

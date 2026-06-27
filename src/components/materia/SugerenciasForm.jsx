@@ -1,6 +1,13 @@
 import { useState } from 'react';
 import { useUser } from '../../context/UserContext';
-import { matchesName } from '../../utils/nameMatch';
+import { sintesisService } from '../../services/api';
+
+const NOMBRES_COMPONENTE = {
+  consultorTech: 'Perfil Consultor Tech',
+  marcoNacional: 'Marco Nacional (MNC)',
+  empleabilidad: 'Empleabilidad',
+  estrategiaPedagogica: 'Estrategia pedagógica',
+};
 
 export default function SugerenciasForm({ materiaId, sugerencias, onSave, onDelete }) {
   const { user } = useUser();
@@ -12,6 +19,8 @@ export default function SugerenciasForm({ materiaId, sugerencias, onSave, onDele
   const [editId, setEditId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState({ text: '', ok: false });
+  const [analisis, setAnalisis] = useState(null);
+  const [analizando, setAnalizando] = useState(false);
 
   if (!nombre) {
     return (
@@ -33,11 +42,34 @@ export default function SugerenciasForm({ materiaId, sugerencias, onSave, onDele
     setSemana('');
     setTitulo('');
     setDescripcion('');
+    setAnalisis(null);
   }
 
-  async function handleSubmit(e) {
+  // Si el docente edita el texto tras analizar, se invalida el análisis previo.
+  function alEditarCampo(setter) {
+    return (e) => { setter(e.target.value); if (analisis) setAnalisis(null); };
+  }
+
+  // Paso 1: analizar con IA y mostrar a qué componentes aporta (NO registra todavía).
+  async function handleAnalizar(e) {
     e.preventDefault();
     if (!semana.trim() || !titulo.trim()) return;
+    setAnalizando(true);
+    setMsg({ text: '', ok: false });
+    try {
+      const cls = await sintesisService.clasificarSugerencia(materiaId, `${titulo.trim()}. ${descripcion.trim()}`);
+      setAnalisis(cls);
+    } catch (err) {
+      const m = (err && err.message) || '';
+      const limite = /rate limit|l[ií]mite|TPD|tokens per day/i.test(m);
+      setAnalisis({ componentes: [], comentario: '', error: true, limite });
+    } finally {
+      setAnalizando(false);
+    }
+  }
+
+  // Paso 2: el docente confirma y se registra la sugerencia.
+  async function handleConfirmar() {
     setSaving(true);
     setMsg({ text: '', ok: false });
     try {
@@ -66,34 +98,11 @@ export default function SugerenciasForm({ materiaId, sugerencias, onSave, onDele
 
   return (
     <div className="space-y-4">
-      {sugerencias.length > 0 && (
-        <div className="space-y-2">
-          {sugerencias.map(s => {
-            const isOwner = matchesName(nombre, s.profesor);
-            const canManage = isOwner || user?.rol === 'admin';
-            return (
-              <div key={s._id} className="flex items-start gap-3 bg-white border border-amber-200/30 rounded-xl p-3 group">
-                <span className="inline-flex items-center justify-center w-14 h-6 rounded-md bg-amber-100 text-amber-800 text-[10px] font-bold shrink-0 mt-0.5">
-                  Sem. {s.semana}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <h4 className="text-sm font-semibold text-ink">{s.titulo}</h4>
-                  {s.descripcion && <p className="text-xs text-ink-2 mt-0.5 leading-relaxed">{s.descripcion}</p>}
-                  <span className="text-[10px] text-ink-2/50 mt-1 block">{s.profesor}</span>
-                </div>
-                {canManage && (
-                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                    <button onClick={() => startEdit(s)} className="text-[10px] text-amber-700 hover:text-amber-900 font-semibold px-2 py-1 rounded-md hover:bg-amber-50 cursor-pointer transition-colors">Editar</button>
-                    <button onClick={() => handleDelete(s._id)} className="text-[10px] text-red-500 hover:text-red-700 font-semibold px-2 py-1 rounded-md hover:bg-red-50 cursor-pointer transition-colors">Eliminar</button>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
+      <p className="text-xs text-ink-2/70">
+        Las sugerencias registradas se muestran y gestionan en la pestaña <strong>Ficha general</strong>, dentro de «Sugerencias para aumentar la alineación».
+      </p>
 
-      <form onSubmit={handleSubmit} className="bg-gradient-to-br from-amber-50/50 to-orange-50/30 border border-amber-200/30 rounded-xl p-4 space-y-3">
+      <form onSubmit={handleAnalizar} className="bg-gradient-to-br from-amber-50/50 to-orange-50/30 border border-amber-200/30 rounded-xl p-4 space-y-3">
         <h4 className="text-sm font-heading font-semibold text-ink">
           {editId ? 'Editar sugerencia' : 'Proponer un ajuste al planeador'}
         </h4>
@@ -103,7 +112,7 @@ export default function SugerenciasForm({ materiaId, sugerencias, onSave, onDele
             <input
               type="text"
               value={semana}
-              onChange={e => setSemana(e.target.value)}
+              onChange={alEditarCampo(setSemana)}
               placeholder="Ej: 5–6"
               required
               className="w-full px-3 py-2 rounded-lg border border-amber-200/50 bg-white text-sm focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-200/30 transition-all"
@@ -114,7 +123,7 @@ export default function SugerenciasForm({ materiaId, sugerencias, onSave, onDele
             <input
               type="text"
               value={titulo}
-              onChange={e => setTitulo(e.target.value)}
+              onChange={alEditarCampo(setTitulo)}
               placeholder="Ej: Incluir ejercicio de auditoría de código con IA"
               required
               className="w-full px-3 py-2 rounded-lg border border-amber-200/50 bg-white text-sm focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-200/30 transition-all"
@@ -125,7 +134,7 @@ export default function SugerenciasForm({ materiaId, sugerencias, onSave, onDele
           <label className="block text-xs font-semibold mb-1 text-ink-2">Descripción o justificación <span className="font-normal text-ink-2/50">(opcional)</span></label>
           <textarea
             value={descripcion}
-            onChange={e => setDescripcion(e.target.value)}
+            onChange={alEditarCampo(setDescripcion)}
             placeholder="¿Por qué este ajuste aumentaría la alineación curricular? ¿En qué se basa?"
             rows={2}
             className="w-full px-3 py-2 rounded-lg border border-amber-200/50 bg-white text-sm resize-y focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-200/30 transition-all"
@@ -134,10 +143,10 @@ export default function SugerenciasForm({ materiaId, sugerencias, onSave, onDele
         <div className="flex items-center gap-3">
           <button
             type="submit"
-            disabled={saving}
+            disabled={analizando || saving}
             className="px-5 py-2 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 text-white font-heading font-semibold text-sm shadow-md hover:shadow-lg hover:scale-[1.02] transition-all duration-300 disabled:opacity-50 cursor-pointer"
           >
-            {editId ? 'Actualizar' : 'Agregar sugerencia'}
+            {analizando ? 'Analizando con IA…' : (analisis ? 'Volver a analizar' : 'Analizar con IA')}
           </button>
           {editId && (
             <button type="button" onClick={cancelEdit} className="text-sm text-ink-2 hover:text-ink cursor-pointer transition-colors">
@@ -149,6 +158,53 @@ export default function SugerenciasForm({ materiaId, sugerencias, onSave, onDele
           )}
         </div>
       </form>
+
+      {analisis && (
+        <div className="rounded-xl border border-violet-200 bg-violet-50 p-3 animate-fade-in">
+          <span className="block text-[10px] font-bold uppercase tracking-wider text-violet-700 mb-1.5">Chequeo con IA</span>
+          {analisis.error ? (
+            <p className="text-xs text-ink-2">
+              {analisis.limite
+                ? 'Se alcanzó el límite diario de uso de la IA (plan gratuito de Groq). Inténtelo más tarde; puede registrar la sugerencia de todas formas.'
+                : 'No se pudo analizar con IA en este momento. Puede registrar la sugerencia de todas formas.'}
+            </p>
+          ) : analisis.componentes && analisis.componentes.length > 0 ? (
+            <>
+              <p className="text-xs text-ink-2 mb-1.5">Esta sugerencia aporta a:</p>
+              <div className="flex flex-wrap gap-1.5">
+                {analisis.componentes.map(c => (
+                  <span key={c} className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-violet-100 border border-violet-200 text-violet-700">
+                    {NOMBRES_COMPONENTE[c] || c}
+                  </span>
+                ))}
+              </div>
+            </>
+          ) : (
+            <p className="text-xs text-ink-2">La IA no detecta un aporte claro a ninguna de las 4 componentes de alineación. Puede reformularla para que apunte a alguna (Consultor Tech, MNC, Empleabilidad o Estrategia pedagógica) o registrarla de todas formas.</p>
+          )}
+          {analisis.comentario && <p className="text-[11px] text-ink-2/70 italic mt-1.5">{analisis.comentario}</p>}
+
+          {/* Confirmación: el docente decide si la agrega o no */}
+          <div className="flex items-center gap-2 mt-3 pt-2.5 border-t border-violet-200/60">
+            <button
+              type="button"
+              onClick={handleConfirmar}
+              disabled={saving}
+              className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-50 cursor-pointer transition-colors"
+            >
+              {saving ? 'Agregando…' : 'Confirmar y agregar'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setAnalisis(null)}
+              disabled={saving}
+              className="px-3 py-1.5 text-xs text-ink-2 hover:text-ink cursor-pointer transition-colors"
+            >
+              Descartar
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

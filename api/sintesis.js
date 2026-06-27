@@ -122,34 +122,12 @@ Contexto normativo, sectorial e institucional que DEBE informar la síntesis:
    - Se valoran perfiles híbridos: competencia técnica + habilidades blandas (comunicación, liderazgo, pensamiento estratégico).
    - Ruta N impulsa el ecosistema tech de Medellín con más de 480 empresas y 18.000 oportunidades de formación.
 ${bloqueCurricular}
-Instrucciones:
-- Integra los aportes sin repetir ideas; resuelve los solapamientos y unifica la terminología.
-- Conserva lo esencial de cada docente y mantén un nivel de exigencia acorde a la formación técnica laboral.
-- Asegúrate de que la síntesis refleje la alineación con el MNC, el perfil Consultor Tech y la demanda del sector en Medellín.
-- Redacta en tercera persona y con tono académico.
+Instrucciones de redacción:
+- Integra los aportes del equipo sin repetir ideas; resuelve los solapamientos y unifica la terminología.
+- Alinea la definición con el MNC, el perfil Consultor Tech y la demanda del sector en Medellín.
+- Redacta en tercera persona, con tono académico, y un nivel de exigencia acorde a la formación técnica laboral.
 
-Entrega la respuesta EXACTAMENTE con esta estructura:
-
-Comprensión del consultor:
-<un párrafo que defina cómo se entiende al consultor en este submódulo, vinculando con el MNC y el perfil Consultor Tech>
-
-Saber (conocimientos):
-<síntesis alineada con los descriptores del MNC para el nivel técnico laboral>
-
-Saber-hacer (habilidades):
-<síntesis que refleje destrezas cognitivas y prácticas pertinentes al sector TI de Medellín>
-
-Saber-ser (actitudes y valores):
-<síntesis que incluya autonomía, responsabilidad y habilidades blandas valoradas por el sector>
-
-Al final, evalúa la alineación de este submódulo en cada dimensión con un número entero de 0 a 100. Usa EXACTAMENTE este formato en las últimas líneas de tu respuesta:
-
-ALINEACION:
-consultorTech: <número>
-marcoNacional: <número>
-sectorMedellin: <número>
-empleabilidad: <número>
-innovacionDidactica: <número>
+Entrega ÚNICAMENTE un párrafo de MÁXIMO 100 PALABRAS que defina cómo se entiende al «consultor» en este submódulo, integrando en prosa su comprensión del cliente, su saber, su saber-hacer y su saber-ser. No uses encabezados, listas ni viñetas; responde solo el párrafo, sin ninguna sección adicional.
 
 Aportes de los docentes:
 ${bloques}`;
@@ -183,6 +161,44 @@ module.exports = async (req, res) => {
     const info = MATERIAS_INFO[materiaId];
     if (!info) return res.status(400).json({ error: 'materiaId inválido' });
 
+    // --- Chequeo con IA de una sugerencia: ¿a cuál(es) de las 4 componentes aporta? ---
+    if (b.clasificar) {
+      const texto = String(b.texto || '').trim();
+      if (!texto) return res.status(400).json({ error: 'Texto de la sugerencia vacío.' });
+      const key = process.env.GROQ_API_KEY;
+      if (!key) return res.status(500).json({ error: 'Falta la variable de entorno GROQ_API_KEY' });
+
+      const sys = 'Eres un evaluador curricular. Clasificas si una sugerencia de ajuste al planeador aporta a alguna de las cuatro componentes de alineación de un programa técnico de desarrollo de software. Eres estricto: si la sugerencia no se relaciona con ninguna, devuelves lista vacía. Respondes ÚNICAMENTE con un objeto JSON.';
+      const usr = `Componentes (clave: definición):
+- consultorTech: Perfil Consultor Tech — interpretar al cliente, diseñar soluciones, comunicar negocio-técnica, acompañar la implementación.
+- marcoNacional: Marco Nacional de Cualificaciones — saber (conocimientos), saber-hacer (destrezas), saber-ser (autonomía y responsabilidad).
+- empleabilidad: Empleabilidad — enfoques TI más demandados (Big Data y analítica, IA, nube, ciberseguridad, full-stack, DevOps) e inserción laboral.
+- estrategiaPedagogica: Estrategia pedagógica — aprendizaje basado en proyectos, uso de IA en el aula, casos reales, evaluación por evidencias.
+
+Sugerencia para la materia "${info.nombre}": "${texto}"
+
+Devuelve SOLO JSON: {"componentes": [claves de las componentes a las que realmente aporta], "comentario": "una frase breve"}. Si no aporta a ninguna, "componentes" debe ser [].`;
+
+      const cr = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+          temperature: 0,
+          max_tokens: 200,
+          response_format: { type: 'json_object' },
+          messages: [{ role: 'system', content: sys }, { role: 'user', content: usr }],
+        }),
+      });
+      const cd = await cr.json();
+      if (!cr.ok) return res.status(502).json({ error: 'IA: ' + ((cd.error && cd.error.message) || cr.status) });
+      let parsed = {};
+      try { parsed = JSON.parse(cd.choices[0].message.content); } catch { parsed = {}; }
+      const validas = ['consultorTech', 'marcoNacional', 'empleabilidad', 'estrategiaPedagogica'];
+      const componentes = Array.isArray(parsed.componentes) ? parsed.componentes.filter(c => validas.includes(c)) : [];
+      return res.status(200).json({ componentes, comentario: String(parsed.comentario || '') });
+    }
+
     const db = await getDb();
     const aportes = await db.collection('aportes').find({ materiaId }).toArray();
     if (!aportes.length) {
@@ -201,6 +217,7 @@ module.exports = async (req, res) => {
       body: JSON.stringify({
         model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
         temperature: 0.4,
+        max_tokens: 260,
         messages: [
           { role: 'system', content: SYSTEM },
           { role: 'user', content: prompt },
@@ -216,9 +233,11 @@ module.exports = async (req, res) => {
     if (!raw) return res.status(502).json({ error: 'La IA no devolvió contenido.' });
 
     const alineacionIA = parseAlineacion(raw);
-    let sintesis = raw.trim();
+    let sintesis = raw.trim().replace(/\n*ALINEACION:[\s\S]*$/, '').trim();
+    // Tope duro de 100 palabras para el apartado de la ficha.
+    const palabras = sintesis.split(/\s+/).filter(Boolean);
+    if (palabras.length > 100) sintesis = palabras.slice(0, 100).join(' ') + '…';
     if (alineacionIA) {
-      sintesis = sintesis.replace(/\n*ALINEACION:[\s\S]*$/, '').trim();
       await db.collection('materias').updateOne(
         { materiaId },
         { $set: { alineacionIA, alineacionIAFecha: new Date() } },

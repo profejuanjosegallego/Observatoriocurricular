@@ -1,85 +1,93 @@
 const { getDb } = require('../lib/mongo');
 const { MATERIAS_VALIDAS } = require('../lib/constants');
+const crypto = require('crypto');
 
-const DIMENSIONES = ['consultorTech', 'marcoNacional', 'sectorMedellin', 'empleabilidad', 'innovacionDidactica'];
-
-const BASE = {
-  logica:     { consultorTech: 72, marcoNacional: 88, sectorMedellin: 58, empleabilidad: 55, innovacionDidactica: 85 },
-  intro:      { consultorTech: 70, marcoNacional: 85, sectorMedellin: 68, empleabilidad: 65, innovacionDidactica: 90 },
-  bd:         { consultorTech: 78, marcoNacional: 86, sectorMedellin: 75, empleabilidad: 78, innovacionDidactica: 72 },
-  agiles:     { consultorTech: 92, marcoNacional: 82, sectorMedellin: 88, empleabilidad: 82, innovacionDidactica: 95 },
-  backend1:   { consultorTech: 80, marcoNacional: 88, sectorMedellin: 90, empleabilidad: 88, innovacionDidactica: 80 },
-  frontend1:  { consultorTech: 76, marcoNacional: 84, sectorMedellin: 85, empleabilidad: 85, innovacionDidactica: 88 },
-  nuevastec:  { consultorTech: 95, marcoNacional: 78, sectorMedellin: 95, empleabilidad: 85, innovacionDidactica: 92 },
-  backend2:   { consultorTech: 88, marcoNacional: 86, sectorMedellin: 92, empleabilidad: 92, innovacionDidactica: 78 },
-  frontend2:  { consultorTech: 84, marcoNacional: 84, sectorMedellin: 88, empleabilidad: 90, innovacionDidactica: 85 },
-};
-
-const KW = {
+// Evaluación semántica de la alineación curricular (LLM-as-judge con Groq).
+// Solo se evalúan factores DERIVABLES DEL CONTENIDO del planeador; los factores externos
+// (valoración del testeo, demanda de roles de Cenisoft) se mantienen como prior experto en el front.
+// El orden de cada arreglo coincide con DIMENSIONES en src/data/alineacion.js; null = factor externo.
+const FACTORES_SEMANTICOS = {
   consultorTech: [
-    'consultor', 'cliente', 'requerimiento', 'necesidad', 'solucion', 'asesoria',
-    'propuesta', 'negocio', 'estrategia', 'diagnostico', 'interpretar', 'socio',
-    'acompanamiento', 'servicio', 'valor', 'comunicacion',
+    { id: 'ct0', idx: 0, nombre: 'Interpretar al cliente', desc: 'Comprender necesidades, requisitos y el problema de negocio antes de codificar; interpretar enunciados de problemas cuenta como ejercicio implícito de esta competencia.' },
+    { id: 'ct1', idx: 1, nombre: 'Diseñar soluciones', desc: 'Plantear algoritmos, modelos, estructura o arquitectura de la solución.' },
+    { id: 'ct2', idx: 2, nombre: 'Comunicar negocio-técnica', desc: 'Presentar, sustentar, explicar o documentar la solución a otros.' },
+    { id: 'ct3', idx: 3, nombre: 'Acompañar la implementación', desc: 'Implementar, probar, validar y dar seguimiento a la solución.' },
   ],
   marcoNacional: [
-    'competencia', 'resultado de aprendizaje', 'saber', 'cualificacion', 'descriptor',
-    'evidencia', 'criterio', 'evaluacion', 'formacion', 'tecnico laboral', 'nivel',
-    'autonomia', 'responsabilidad',
-  ],
-  sectorMedellin: [
-    'cloud', 'nube', 'inteligencia artificial', ' ia ', 'machine learning', 'devops',
-    'docker', 'kubernetes', 'aws', 'azure', 'gcp', 'seguridad', 'ciberseguridad',
-    'fullstack', 'full-stack', 'full stack', 'react', 'node', 'python', 'javascript',
-    'agil', 'scrum', ' api ', 'rest', 'microservicio', 'ci/cd', 'git', 'despliegue',
-    'deploy', 'contenedor', 'serverless', 'datos', 'data',
+    { id: 'mnc0', idx: 0, nombre: 'Saber (conocimientos)', desc: 'Conceptos, fundamentos y teoría del campo que la materia enseña.' },
+    { id: 'mnc1', idx: 1, nombre: 'Saber-hacer (destrezas)', desc: 'Aplicación práctica: desarrollar, construir, resolver, implementar, manejar herramientas.' },
+    { id: 'mnc2', idx: 2, nombre: 'Saber-ser (autonomía)', desc: 'Autonomía, responsabilidad, ética y trabajo en equipo.' },
   ],
   empleabilidad: [
-    'proyecto', 'portafolio', 'industria', 'empresa', 'laboral', 'profesional',
-    'mercado', 'empleo', 'practica', 'aplicacion real', 'produccion', 'equipo',
-    'colaboracion', 'entrega', 'sprint', 'producto', 'funcional', 'entregable',
+    { id: 'emp0', idx: 0, nombre: 'Coincidencia con enfoques demandados', desc: 'Cobertura de las tecnologías más demandadas del mercado: Big Data y analítica, IA, nube, ciberseguridad, full-stack, DevOps.' },
+    { id: 'emp3', idx: 3, nombre: 'Vigencia tecnológica y diferenciación', desc: 'Qué tan actuales, vigentes y diferenciadoras son las herramientas y los temas de la materia.' },
   ],
-  innovacionDidactica: [
-    'abp', 'gamificacion', 'invertida', 'flipped', 'pair programming', 'parejas',
-    'design thinking', 'hackathon', 'microlearning', 'colaborativo', 'creativo',
-    'innovacion', 'taller', 'simulacion', 'reto', 'desafio', 'prototipo', 'iterativo',
+  estrategiaPedagogica: [
+    { id: 'ped0', idx: 0, nombre: 'Aprendizaje basado en proyectos', desc: 'Proyectos, retos, casos o productos reales como eje del aprendizaje.' },
+    { id: 'ped1', idx: 1, nombre: 'Uso de IA en el aula', desc: 'Uso de inteligencia artificial como herramienta de aprendizaje o de trabajo.' },
+    { id: 'ped2', idx: 2, nombre: 'Casos reales / cliente real', desc: 'Escenarios reales, empresas, contexto de negocio o cliente.' },
+    { id: 'ped3', idx: 3, nombre: 'Evaluación por evidencias', desc: 'Evaluación por evidencias, rúbricas, seguimiento y portafolio.' },
   ],
 };
 
-function norm(text) {
-  return (' ' + (text || '').toLowerCase()
-    .normalize('NFD').replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9\s\/\-]/g, ' ') + ' ');
+const TAM_DIM = { consultorTech: 4, marcoNacional: 3, empleabilidad: 4, estrategiaPedagogica: 4 };
+
+function construirCorpus(planeador) {
+  return planeador
+    .slice()
+    .sort((a, b) => (a.semana || 0) - (b.semana || 0))
+    .map((w, i) => `S${w.semana || i + 1}: ${[w.tematicas, w.resultadoAprendizaje, w.metodologia, w.observaciones, w.unidadAprendizaje].filter(Boolean).join(' / ')}`)
+    .join('\n')
+    .trim();
 }
 
-function keywordScore(text, keywords) {
-  if (!text) return 0;
-  const n = norm(text);
-  let hits = 0;
-  for (const kw of keywords) {
-    const nk = norm(kw).trim();
-    let idx = -1;
-    while ((idx = n.indexOf(nk, idx + 1)) !== -1) hits++;
+function listaFactores() {
+  const out = [];
+  for (const dim of Object.keys(FACTORES_SEMANTICOS)) {
+    for (const f of FACTORES_SEMANTICOS[dim]) out.push(`- ${f.id}: ${f.nombre}. ${f.desc}`);
   }
-  return hits;
+  return out.join('\n');
 }
 
-function buildText(aportes, planeador, materia) {
-  const parts = [];
-  for (const a of aportes) {
-    parts.push(a.comprension, a.saber, a.saberHacer, a.saberSer);
-  }
-  for (const p of planeador) {
-    parts.push(p.tematicas, p.resultado, p.metodologia, p.observaciones);
-    if (p.tematicasDetalle) {
-      for (const t of p.tematicasDetalle) parts.push(t.texto);
+async function evaluarConGroq(nombreMateria, corpus) {
+  const key = process.env.GROQ_API_KEY;
+  if (!key) throw new Error('Falta GROQ_API_KEY');
+
+  const system = 'Eres un analista curricular experto. Evalúas, leyendo el contenido REAL de un planeador de aula, qué tan presente está cada competencia en una escala de 0 a 100, considerando presencia explícita E implícita (una competencia puede ejercitarse sin nombrarse). Eres riguroso y realista: si el contenido no desarrolla una competencia, asignas un valor bajo aunque el nombre suene relacionado. Respondes ÚNICAMENTE con un objeto JSON.';
+  const user = `MATERIA: ${nombreMateria}.
+
+COMPETENCIAS A EVALUAR (id: nombre — definición):
+${listaFactores()}
+
+CONTENIDO DEL PLANEADOR (18 semanas):
+${corpus}
+
+Devuelve SOLO un objeto JSON con una clave por cada id y un entero de 0 a 100 que represente qué tan presente está esa competencia en el contenido real de la materia. No incluyas texto adicional.`;
+
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+      temperature: 0,
+      response_format: { type: 'json_object' },
+      messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error((data.error && data.error.message) || ('Groq ' + res.status));
+  const raw = JSON.parse(data.choices[0].message.content);
+
+  // Reconstruir la estructura por dimensión con null en factores externos.
+  const semantica = {};
+  for (const dim of Object.keys(TAM_DIM)) {
+    semantica[dim] = new Array(TAM_DIM[dim]).fill(null);
+    for (const f of (FACTORES_SEMANTICOS[dim] || [])) {
+      const v = Number(raw[f.id]);
+      if (Number.isFinite(v)) semantica[dim][f.idx] = Math.max(0, Math.min(100, Math.round(v)));
     }
   }
-  if (materia) {
-    parts.push(materia.proposito, materia.objetivo, materia.competencia);
-    parts.push(materia.relacionPerfilEgreso, materia.relacionConsultorTech);
-    parts.push(materia.definicionSintesis);
-  }
-  return parts.filter(Boolean).join(' ');
+  return { semantica, modelo: data.model || (process.env.GROQ_MODEL || 'llama-3.3-70b-versatile'), tokens: (data.usage && data.usage.total_tokens) || null };
 }
 
 module.exports = async (req, res) => {
@@ -88,65 +96,44 @@ module.exports = async (req, res) => {
       res.setHeader('Allow', 'GET');
       return res.status(405).json({ error: 'Método no permitido' });
     }
-
     const materiaId = (req.query && req.query.materia) || '';
     if (!MATERIAS_VALIDAS.includes(materiaId)) {
       return res.status(400).json({ error: 'materiaId inválido' });
     }
 
-    const base = BASE[materiaId];
-    if (!base) return res.status(400).json({ error: 'Sin datos base' });
-
     const db = await getDb();
-    const [aportes, planeador, materia] = await Promise.all([
-      db.collection('aportes').find({ materiaId }).toArray(),
+    const [planeador, materia] = await Promise.all([
       db.collection('planeadores').find({ materiaId }).toArray(),
       db.collection('materias').findOne({ materiaId }),
     ]);
+    if (!planeador.length) return res.status(200).json({ semantica: null, fuente: 'experto', motivo: 'sin planeador' });
 
-    const semanasConContenido = planeador.filter(p => p.tematicas && p.tematicas.trim()).length;
-    const planeadorPct = semanasConContenido / 18;
-    const aportesPct = Math.min(aportes.length / 3, 1.0);
-    const hasSintesis = !!(materia && materia.definicionSintesis);
-    const cobertura = (planeadorPct * 0.4) + (aportesPct * 0.3) + (hasSintesis ? 0.3 : 0);
+    const corpus = construirCorpus(planeador);
+    const hash = crypto.createHash('sha1').update(corpus).digest('hex');
+    const cacheCol = db.collection('alineacion_cache');
 
-    const allText = buildText(aportes, planeador, materia);
-    const aiScores = (materia && materia.alineacionIA) || null;
-
-    const scores = {};
-    let fuente = 'bibliográfica';
-
-    for (const dim of DIMENSIONES) {
-      let score = base[dim];
-
-      const coverageAdj = Math.round((cobertura - 0.5) * 16);
-      score += coverageAdj;
-
-      const hits = keywordScore(allText, KW[dim]);
-      const relevanceAdj = Math.min(8, Math.round(hits / 4)) - 2;
-      score += relevanceAdj;
-
-      if (aiScores && typeof aiScores[dim] === 'number') {
-        score = Math.round(score * 0.35 + aiScores[dim] * 0.65);
-        fuente = 'integral';
-      } else if (allText.length > 200) {
-        fuente = fuente === 'integral' ? 'integral' : 'heurística';
-      }
-
-      scores[dim] = Math.max(0, Math.min(100, Math.round(score)));
+    // Caché por (materia, hash): cada contenido del planeador se evalúa UNA sola vez en la vida
+    // y siempre devuelve lo mismo, incluso si se revierte a un estado anterior del planeador.
+    const cacheado = await cacheCol.findOne({ materiaId, hash });
+    if (cacheado && cacheado.semantica) {
+      return res.status(200).json({ semantica: cacheado.semantica, fuente: 'semantica', modelo: cacheado.modelo, fecha: cacheado.fecha, cache: true });
     }
 
-    return res.status(200).json({
-      scores,
-      fuente,
-      detalle: {
-        aportes: aportes.length,
-        semanasPlaneador: semanasConContenido,
-        tieneSintesis: hasSintesis,
-        tieneIA: !!aiScores,
-        cobertura: Math.round(cobertura * 100),
-      },
-    });
+    let evaluacion;
+    try {
+      evaluacion = await evaluarConGroq((materia && materia.nombre) || materiaId, corpus);
+    } catch (e) {
+      // Degradación elegante: si la IA falla, el front usa el prior experto.
+      return res.status(200).json({ semantica: cacheado?.semantica || null, fuente: cacheado?.semantica ? 'semantica-cache' : 'experto', error: e.message });
+    }
+
+    const fecha = new Date().toISOString();
+    await cacheCol.updateOne(
+      { materiaId, hash },
+      { $set: { materiaId, hash, semantica: evaluacion.semantica, modelo: evaluacion.modelo, fecha } },
+      { upsert: true },
+    );
+    return res.status(200).json({ semantica: evaluacion.semantica, fuente: 'semantica', modelo: evaluacion.modelo, tokens: evaluacion.tokens, fecha, cache: false });
   } catch (e) {
     return res.status(500).json({ error: e.message });
   }

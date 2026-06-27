@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Fragment } from 'react';
 import { getMateria, getNivel } from '../../data/materias';
-import { ALINEACION, DIMENSIONES, DIDACTICAS, REFERENCIAS, CONTEXTO_MNC, CONTEXTO_SECTOR, TESTEO_EMPRESARIAL, INFORME_PERTINENCIA, RECOMENDACIONES_PLANEADOR } from '../../data/alineacion';
-import { materiasService, alineacionService } from '../../services/api';
+import { ALINEACION, DIMENSIONES, DIDACTICAS, REFERENCIAS, CONTEXTO_MNC, CONTEXTO_SECTOR, CONTEXTO_CUOC, TESTEO_EMPRESARIAL, INFORME_PERTINENCIA, RECOMENDACIONES_PLANEADOR, desglosarDimension, bandaDe, METODOLOGIA_ANALITICA, calcularEvidenciaCorpus, calcularAlineacion, ALPHA_SEMANTICA } from '../../data/alineacion';
+import { materiasService, planeadoresService, alineacionService, sintesisService } from '../../services/api';
 import { useUser } from '../../context/UserContext';
 import RadarChart from './RadarChart';
 
@@ -170,11 +170,23 @@ function ReferenciaLink({ r }) {
   );
 }
 
-function RecCard({ rec, indice, override, canEdit, onEdit, onDelete, onRestore }) {
+function RecCard({ rec, indice, override, canEdit, onEdit, onDelete, onRestore, onIncluir }) {
   const [editing, setEditing] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [tema, setTema] = useState('');
   const [justificacion, setJustificacion] = useState('');
+  const [incluyendo, setIncluyendo] = useState(false);
+
+  async function handleIncluir() {
+    if (!onIncluir || incluyendo) return;
+    setIncluyendo(true);
+    try {
+      await onIncluir(rec);
+      // Al recalcularse el planeador, esta card desaparece (su tema ya está incluido).
+    } catch (e) {
+      setIncluyendo(false);
+    }
+  }
 
   if (override?.accion === 'eliminado') {
     return (
@@ -243,6 +255,31 @@ function RecCard({ rec, indice, override, canEdit, onEdit, onDelete, onRestore }
               </span>
             )}
           </div>
+          {canEdit && onIncluir && (
+            <button
+              onClick={handleIncluir}
+              disabled={incluyendo}
+              className="mt-3 inline-flex items-center gap-1.5 text-[11px] font-semibold rounded-lg px-2.5 py-1.5 transition-colors bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 cursor-pointer disabled:opacity-70 disabled:cursor-default"
+              title={`Anexa este tema a la semana ${rec.semana} del planeador y recalcula la gráfica`}
+            >
+              {incluyendo ? (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  Incluyendo y recalculando…
+                </>
+              ) : (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                  </svg>
+                  Incluir en el planeador (Sem. {rec.semana})
+                </>
+              )}
+            </button>
+          )}
         </div>
         {canEdit && !confirming && (
           <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
@@ -270,13 +307,24 @@ function RecCard({ rec, indice, override, canEdit, onEdit, onDelete, onRestore }
   );
 }
 
-function SugerenciaDocenteCard({ s, materiaId, canEdit, onSave, onDelete }) {
+function SugerenciaDocenteCard({ s, materiaId, canEdit, onSave, onDelete, onIncluir }) {
   const [editing, setEditing] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [incluyendo, setIncluyendo] = useState(false);
   const [semana, setSemana] = useState(s.semana || '');
   const [titulo, setTitulo] = useState(s.titulo || '');
   const [descripcion, setDescripcion] = useState(s.descripcion || '');
+
+  async function handleIncluir() {
+    if (!onIncluir || incluyendo) return;
+    setIncluyendo(true);
+    try {
+      await onIncluir({ semana: s.semana, tema: s.titulo, justificacion: s.descripcion || '' });
+    } catch (e) {
+      setIncluyendo(false);
+    }
+  }
 
   function resetCampos() {
     setSemana(s.semana || '');
@@ -323,19 +371,46 @@ function SugerenciaDocenteCard({ s, materiaId, canEdit, onSave, onDelete }) {
   return (
     <div className="bg-white/80 border border-amber-200/30 rounded-xl p-4 hover:shadow-md transition-all duration-300 group">
       <div className="flex items-start gap-3">
-        <span className="inline-flex items-center justify-center w-16 h-7 rounded-lg bg-magenta/10 text-magenta text-[11px] font-bold shrink-0 mt-0.5">
+        <span className="inline-flex items-center justify-center w-16 h-7 rounded-lg bg-amber-100 text-amber-800 text-[11px] font-bold shrink-0 mt-0.5">
           Sem. {s.semana}
         </span>
         <div className="min-w-0 flex-1">
           <h4 className="font-heading font-bold text-sm text-ink mb-1">{s.titulo}</h4>
           {s.descripcion && <p className="text-xs text-ink-2 leading-relaxed mb-2">{s.descripcion}</p>}
-          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-magenta/8 border border-magenta/15 text-magenta">
-            {s.profesor}
-          </span>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200/60 text-amber-700">
+              {s.profesor}
+            </span>
+          </div>
+          {canEdit && onIncluir && (
+            <button
+              onClick={handleIncluir}
+              disabled={incluyendo}
+              className="mt-3 inline-flex items-center gap-1.5 text-[11px] font-semibold rounded-lg px-2.5 py-1.5 transition-colors bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 cursor-pointer disabled:opacity-70 disabled:cursor-default"
+              title={`Anexa este tema a la semana ${s.semana} del planeador y recalcula la gráfica`}
+            >
+              {incluyendo ? (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  Incluyendo y recalculando…
+                </>
+              ) : (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                  </svg>
+                  Incluir en el planeador (Sem. {s.semana})
+                </>
+              )}
+            </button>
+          )}
         </div>
         {canEdit && !confirming && (
           <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-            <button onClick={() => setEditing(true)} className="text-ink-2/40 hover:text-magenta cursor-pointer transition-colors p-1" title="Editar">
+            <button onClick={() => setEditing(true)} className="text-ink-2/40 hover:text-amber-600 cursor-pointer transition-colors p-1" title="Editar">
               <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
               </svg>
@@ -359,16 +434,20 @@ function SugerenciaDocenteCard({ s, materiaId, canEdit, onSave, onDelete }) {
   );
 }
 
-function SugerenciasAlineacion({ materiaId, sugerenciasDocentes, recOverrides, canEdit, onEditRec, onDeleteRec, onRestoreRec, onSaveSugerencia, onDeleteSugerencia }) {
+function SugerenciasAlineacion({ materiaId, sugerenciasDocentes, recOverrides, canEdit, onEditRec, onDeleteRec, onRestoreRec, onSaveSugerencia, onDeleteSugerencia, onIncluir, planeadorTexto }) {
   const recs = RECOMENDACIONES_PLANEADOR[materiaId] || [];
   const docentes = sugerenciasDocentes || [];
-  if (recs.length === 0 && docentes.length === 0) return null;
 
   function getOverride(indice) {
     return recOverrides.find(o => o.indice === indice) || null;
   }
 
-  const activeRecs = recs.filter((_, i) => getOverride(i)?.accion !== 'eliminado');
+  // Una recomendación ya incluida en el planeador (su tema aparece en el corpus) se oculta.
+  const yaEnPlaneador = (r) => !!(planeadorTexto && r.tema && planeadorTexto.includes(r.tema));
+  const recsVisibles = recs.filter(r => !yaEnPlaneador(r));
+  if (recsVisibles.length === 0 && docentes.length === 0) return null;
+
+  const activeRecs = recsVisibles.filter((_, i) => getOverride(i)?.accion !== 'eliminado');
   const deletedRecs = recs.map((r, i) => ({ r, i, o: getOverride(i) })).filter(x => x.o?.accion === 'eliminado');
 
   return (
@@ -383,6 +462,7 @@ function SugerenciasAlineacion({ materiaId, sugerenciasDocentes, recOverrides, c
         {recs.map((r, i) => {
           const override = getOverride(i);
           if (override?.accion === 'eliminado' && !canEdit) return null;
+          if (yaEnPlaneador(r)) return null;
           return (
             <RecCard
               key={`s-${i}`}
@@ -393,55 +473,97 @@ function SugerenciasAlineacion({ materiaId, sugerenciasDocentes, recOverrides, c
               onEdit={onEditRec}
               onDelete={onDeleteRec}
               onRestore={onRestoreRec}
+              onIncluir={onIncluir}
             />
           );
         })}
 
-        {docentes.length > 0 && activeRecs.length > 0 && (
-          <div className="flex items-center gap-3 py-1">
-            <div className="flex-1 h-px bg-amber-300/30" />
-            <span className="text-[10px] font-semibold text-amber-600/70 uppercase tracking-wider">Aportes de docentes</span>
-            <div className="flex-1 h-px bg-amber-300/30" />
-          </div>
-        )}
-
-        {docentes.map(s => (
-          <SugerenciaDocenteCard
-            key={s._id}
-            s={s}
-            materiaId={materiaId}
-            canEdit={canEdit}
-            onSave={onSaveSugerencia}
-            onDelete={onDeleteSugerencia}
-          />
-        ))}
+        {docentes.map(s => {
+          if (planeadorTexto && s.titulo && planeadorTexto.includes(s.titulo)) return null;
+          return (
+            <SugerenciaDocenteCard
+              key={s._id}
+              s={s}
+              materiaId={materiaId}
+              canEdit={canEdit}
+              onSave={onSaveSugerencia}
+              onDelete={onDeleteSugerencia}
+              onIncluir={onIncluir}
+            />
+          );
+        })}
       </div>
     </section>
   );
 }
 
-export default function MateriaFicha({ materiaId, materiaData, sugerenciasDocentes = [], recOverrides = [], onEditRec, onDeleteRec, onRestoreRec, onSaveSugerencia, onDeleteSugerencia, onUpdate }) {
+export default function MateriaFicha({ materiaId, materiaData, aportesCount = 0, sugerenciasDocentes = [], recOverrides = [], onEditRec, onDeleteRec, onRestoreRec, onSaveSugerencia, onDeleteSugerencia, onUpdate }) {
   const { user } = useUser();
   const m = getMateria(materiaId);
   const nv = getNivel(m?.nivel);
   if (!m) return null;
 
   const canEdit = !!user?.nombre;
-  const staticAlin = ALINEACION[materiaId];
-  const didacticas = DIDACTICAS[materiaId] || [];
   const [showRefs, setShowRefs] = useState(false);
-  const [dynamicAlin, setDynamicAlin] = useState(null);
+  const [showAnalisis, setShowAnalisis] = useState(false);
+  const [showCalculo, setShowCalculo] = useState(false);
   const [selectedDim, setSelectedDim] = useState(0);
+  const [planeadorEvidencia, setPlaneadorEvidencia] = useState(null);
+  const [planeadorTexto, setPlaneadorTexto] = useState('');
+  const [semantica, setSemantica] = useState(null);
+  const [evaluando, setEvaluando] = useState(false);
+  const [refreshTick, setRefreshTick] = useState(0);
 
+  const alin = semantica ? calcularAlineacion(materiaId, semantica) : ALINEACION[materiaId];
+  const didacticas = DIDACTICAS[materiaId] || [];
+
+  // Señal léxica EN VIVO: recalcula la evidencia desde el planeador actual de la materia.
+  // Si la carga falla, desglosarDimension cae a la evidencia precalculada (ALINEACION_EVIDENCIA).
   useEffect(() => {
-    let cancelled = false;
-    alineacionService.obtener(materiaId)
-      .then(data => { if (!cancelled) setDynamicAlin(data); })
+    let cancelado = false;
+    setPlaneadorEvidencia(null);
+    planeadoresService.listar(materiaId)
+      .then(plan => {
+        if (cancelado) return;
+        setPlaneadorEvidencia(calcularEvidenciaCorpus(plan));
+        setPlaneadorTexto(plan.map(w => [w.tematicas, w.observaciones].filter(Boolean).join(' ')).join(' '));
+      })
       .catch(() => {});
-    return () => { cancelled = true; };
-  }, [materiaId, materiaData]);
+    return () => { cancelado = true; };
+  }, [materiaId, refreshTick]);
 
-  const alin = dynamicAlin?.scores || staticAlin;
+  // Evaluación semántica (IA): puntaje data-driven mezclado con el prior experto (α).
+  // Cacheado por hash del planeador en el backend; degrada al prior experto si falla.
+  useEffect(() => {
+    let cancelado = false;
+    setSemantica(null);
+    setEvaluando(true);
+    alineacionService.obtener(materiaId)
+      .then(r => { if (!cancelado) setSemantica(r?.semantica || null); })
+      .catch(() => {})
+      .finally(() => { if (!cancelado) setEvaluando(false); });
+    return () => { cancelado = true; };
+  }, [materiaId, refreshTick]);
+
+  // Definición colaborativa del consultor: si "Relación con el Consultor Tech" está vacía,
+  // se genera UNA vez con IA (a partir de los aportes) y se guarda. No se regenera si ya existe.
+  const genConsultorRef = useRef(false);
+  const [generandoConsultor, setGenerandoConsultor] = useState(false);
+  useEffect(() => { genConsultorRef.current = false; }, [materiaId]);
+  useEffect(() => {
+    if (!canEdit || genConsultorRef.current) return;
+    if (aportesCount < 1) return; // sin aportes no hay definición colaborativa que generar
+    const actual = (materiaData?.relacionConsultorTech || '').trim(); // se ignora el seed: solo cuenta el resultado de IA
+    if (actual) return;
+    genConsultorRef.current = true;
+    let cancelado = false;
+    setGenerandoConsultor(true);
+    sintesisService.generar(materiaId)
+      .then(data => { if (!cancelado && data?.sintesis) return handleSave('relacionConsultorTech', data.sintesis); })
+      .catch(() => {})
+      .finally(() => { if (!cancelado) setGenerandoConsultor(false); });
+    return () => { cancelado = true; };
+  }, [materiaId, canEdit, materiaData, m, aportesCount]);
 
   const radarScores = DIMENSIONES.map(d => alin?.[d.key] || 0);
   const radarLabels = DIMENSIONES.map(d => d.corto || d.nombre);
@@ -454,7 +576,7 @@ export default function MateriaFicha({ materiaId, materiaData, sugerenciasDocent
       objetivo: current.objetivo || m.objetivo || '',
       competencia: current.competencia || m.competencia || '',
       relacionPerfilEgreso: current.relacionPerfilEgreso || m.relacionPerfilEgreso || '',
-      relacionConsultorTech: current.relacionConsultorTech || m.relacionConsultorTech || '',
+      relacionConsultorTech: current.relacionConsultorTech || '',
       [fieldKey]: value,
       editadoPor: user?.nombre || '',
     };
@@ -464,8 +586,48 @@ export default function MateriaFicha({ materiaId, materiaData, sugerenciasDocent
 
   const editHandler = canEdit ? handleSave : null;
 
+  // Anexa una sugerencia a la(s) semana(s) propuesta(s) del planeador y dispara el recálculo del radar.
+  async function incluirEnPlaneador(rec) {
+    const nums = String(rec.semana || '').match(/\d+/g);
+    const semanas = nums ? [...new Set(nums.map(Number))].filter(n => n >= 1 && n <= 18) : [];
+    if (!semanas.length) throw new Error('Sin semana válida');
+
+    const plan = await planeadoresService.listar(materiaId);
+    for (const num of semanas) {
+      const w = plan.find(p => Number(p.semana) === num) || {};
+      // Evita duplicar si el tema ya está anexado en esa semana.
+      if ((w.tematicas || '').includes(rec.tema)) continue;
+      const body = {
+        materiaId,
+        semana: num,
+        unidadAprendizaje: w.unidadAprendizaje || '',
+        HT: w.HT || 0,
+        HP: w.HP || 0,
+        HTI: w.HTI || 0,
+        metodologia: w.metodologia || '',
+        resultadoAprendizaje: w.resultadoAprendizaje || '',
+        observaciones: [w.observaciones, rec.justificacion].filter(Boolean).join('\n'),
+        editadoPor: user?.nombre || 'Sugerencia de alineación',
+      };
+      if (Array.isArray(w.tematicasDetalle) && w.tematicasDetalle.length) {
+        body.tematicasDetalle = [...w.tematicasDetalle, { texto: rec.tema, editadoPor: user?.nombre || null, editadoEn: new Date().toISOString() }];
+      } else {
+        body.tematicas = [w.tematicas, rec.tema].filter(Boolean).join('\n');
+      }
+      await planeadoresService.guardar(body);
+    }
+    // Recalcula evidencia léxica y vuelve a pedir la evaluación de IA (el planeador cambió → nuevo hash).
+    setRefreshTick(t => t + 1);
+    onUpdate?.();
+  }
+
   const getValue = (dbKey, staticKey) =>
     materiaData?.[dbKey] || m[staticKey || dbKey] || '';
+
+  // "Relación con el Consultor Tech" se muestra SOLO con el resultado de IA (no el seed institucional)
+  // y solo si existen aportes válidos del equipo (aportesCount ya viene filtrado por validez).
+  const defConsultor = (materiaData?.relacionConsultorTech || '').trim();
+  const hayDefConsultor = !!defConsultor && aportesCount > 0;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -546,20 +708,53 @@ export default function MateriaFicha({ materiaId, materiaData, sugerenciasDocent
           value={getValue('relacionPerfilEgreso')}
           fieldKey="relacionPerfilEgreso"
           onSave={editHandler}
-        />
-        <EditableField
-          label="Relación con el Consultor Tech"
-          value={getValue('relacionConsultorTech')}
-          fieldKey="relacionConsultorTech"
-          onSave={editHandler}
+          wide
         />
       </div>
 
-      <p className="text-xs text-ink-2/60 italic">
-        {canEdit
-          ? 'Haga clic en cualquier campo para editarlo. Los cambios se persisten automáticamente. Estos campos se ajustarán con IA al guardar la definición desde los aportes.'
-          : 'Identifíquese para poder editar los campos de la ficha.'}
-      </p>
+      {/* Relación con el Consultor Tech: SOLO el resultado de IA (síntesis de los aportes válidos). Sin seed. */}
+      <div className={`bg-gradient-to-br rounded-2xl p-4 border ${hayDefConsultor ? 'from-violet-50 to-sky-50 border-violet-200/60' : 'from-amber-50 to-orange-50 border-amber-200/60'}`}>
+        <div className="flex items-center gap-2 mb-2 flex-wrap">
+          {hayDefConsultor ? (
+            <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-violet-700 bg-violet-100 border border-violet-200 rounded-full px-2 py-0.5">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1.13a4 4 0 10-4-4 4 4 0 004 4zm6 0a4 4 0 00-3-3.87M9 7a4 4 0 11-1 .13" />
+              </svg>
+              Construcción colaborativa con IA · {aportesCount} {aportesCount === 1 ? 'aporte' : 'aportes'}
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-amber-700 bg-amber-100 border border-amber-200 rounded-full px-2 py-0.5">
+              {generandoConsultor && (
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+              )}
+              En construcción
+            </span>
+          )}
+        </div>
+        {hayDefConsultor ? (
+          <EditableField
+            label="Relación con el Consultor Tech"
+            value={defConsultor}
+            fieldKey="relacionConsultorTech"
+            onSave={editHandler}
+            wide
+          />
+        ) : (
+          <>
+            <span className="block text-[0.65rem] tracking-wide uppercase font-bold text-magenta mb-1">Relación con el Consultor Tech</span>
+            <p className="text-xs text-ink-2/70 leading-relaxed">
+              {generandoConsultor
+                ? 'Construyendo la definición con IA a partir de los aportes del equipo…'
+                : aportesCount > 0
+                  ? 'La definición se generará automáticamente con IA al abrir esta ficha (a partir de los aportes registrados).'
+                  : 'Aún no hay aportes suficientes de docentes. Se requiere al menos un aporte con contenido en dos o más campos (comprensión, saber, saber-hacer, saber-ser) para construir la definición colaborativa con IA.'}
+            </p>
+          </>
+        )}
+      </div>
 
       {/* Testeo empresarial */}
       {(() => {
@@ -749,6 +944,85 @@ export default function MateriaFicha({ materiaId, materiaData, sugerenciasDocent
         );
       })()}
 
+      {/* Cómo se obtiene el análisis — metodología destacada (antes del radar) */}
+      {alin && (
+        <section className="bg-white border border-magenta/15 rounded-2xl p-5 shadow-sm">
+          <button
+            onClick={() => setShowAnalisis(!showAnalisis)}
+            className="flex items-center gap-2 w-full text-left cursor-pointer group"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-magenta shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
+            </svg>
+            <h3 className="font-heading font-bold text-base text-ink group-hover:text-magenta transition-colors">Cómo se obtiene este análisis</h3>
+            <svg xmlns="http://www.w3.org/2000/svg" className={`ml-auto w-4 h-4 text-magenta shrink-0 transition-transform duration-300 ${showAnalisis ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+          {!showAnalisis && (
+            <p className="text-xs text-ink-2/60 mt-1.5">Toque para ver, paso a paso, cómo se calculan los puntajes (inteligencia artificial combinada con el criterio experto).</p>
+          )}
+
+          {showAnalisis && (
+          <div className="mt-4 animate-fade-in">
+          <p className="text-sm text-ink-2 leading-relaxed mb-4">{METODOLOGIA_ANALITICA.resumen}</p>
+
+          {/* Diagrama del pipeline */}
+          {METODOLOGIA_ANALITICA.diagrama && (
+            <div className="flex flex-col sm:flex-row sm:items-stretch gap-2 mb-5">
+              {METODOLOGIA_ANALITICA.diagrama.map((n, i) => (
+                <Fragment key={i}>
+                  <div className="flex-1 rounded-xl border border-magenta/20 bg-gradient-to-br from-magenta/[0.04] to-magenta-soft/[0.07] px-3 py-3 text-center">
+                    <div className="flex items-center justify-center gap-1.5 mb-1">
+                      <span className="w-5 h-5 rounded-full bg-magenta text-white text-[10px] font-bold flex items-center justify-center shrink-0">{i + 1}</span>
+                      <span className="text-xs font-bold text-ink">{n.titulo}</span>
+                    </div>
+                    <span className="block text-[10px] text-ink-2/70 leading-tight">{n.sub}</span>
+                  </div>
+                  {i < METODOLOGIA_ANALITICA.diagrama.length - 1 && (
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-magenta/50 shrink-0 self-center rotate-90 sm:rotate-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                    </svg>
+                  )}
+                </Fragment>
+              ))}
+            </div>
+          )}
+
+          {/* Pasos del pipeline */}
+          <ol className="space-y-2.5 mb-4">
+            {METODOLOGIA_ANALITICA.pasos.map((p, i) => (
+              <li key={i} className="flex items-start gap-2.5">
+                <span className="w-5 h-5 rounded-full bg-magenta/10 text-magenta text-[10px] font-bold flex items-center justify-center shrink-0 mt-px">{i + 1}</span>
+                <span className="text-xs text-ink-2 leading-relaxed">
+                  <span className="font-semibold text-ink">{p.nombre}: </span>{p.detalle}
+                  {p.resaltado && <> <strong className="font-bold text-ink">{p.resaltado}</strong></>}
+                  {p.detalleCont && <> {p.detalleCont}</>}
+                </span>
+              </li>
+            ))}
+          </ol>
+
+          {/* Aviso de actualización dinámica */}
+          <div className="flex items-start gap-2.5 rounded-xl bg-emerald-50 border border-emerald-200 p-3 mb-3">
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-emerald-600 shrink-0 mt-px" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            <p className="text-xs text-emerald-800 leading-relaxed">
+              <span className="font-bold">Puntajes dinámicos:</span> si el planeador de la materia cambia, la evaluación de IA se vuelve a ejecutar y los puntajes del radar se actualizan automáticamente (el resultado se cachea por contenido para que sea estable y reproducible).
+            </p>
+          </div>
+
+          {METODOLOGIA_ANALITICA.nota && (
+            <p className="text-xs text-ink-2/75 leading-relaxed">
+              <span className="font-semibold text-magenta">Nota metodológica: </span>{METODOLOGIA_ANALITICA.nota}
+            </p>
+          )}
+          </div>
+          )}
+        </section>
+      )}
+
       {/* Alineación curricular — Radar + Barras */}
       {alin && (
         <section className="bg-gradient-to-br from-magenta/[0.03] to-magenta-soft/[0.05] border border-magenta/10 rounded-2xl p-5">
@@ -756,7 +1030,7 @@ export default function MateriaFicha({ materiaId, materiaData, sugerenciasDocent
             Alineación curricular
           </h3>
           <p className="text-xs text-ink-2 mb-2">
-            Estimación basada en tres fuentes: testeo con 8 empresas del sector, panel de 10 expertos de pertinencia curricular y análisis bibliográfico del MNC y la estructura didáctica FTCOCU-236.
+            Cada dimensión se calcula como una suma ponderada de factores valorados de 0 a 100, con base en el testeo con 8 empresas del sector, el panel de 10 expertos de pertinencia, el estudio de empleabilidad Cenisoft 2025, el MNC, el CUOC 2025 y la estructura didáctica FTCOCU-236. Seleccione una dimensión para ver la fórmula y el detalle del cálculo.
           </p>
           {/* Radar grande */}
           <div className="my-4">
@@ -773,13 +1047,13 @@ export default function MateriaFicha({ materiaId, materiaData, sugerenciasDocent
             <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5 text-magenta/50" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            Seleccione una dimensión para conocer qué mide, por qué aparece y sus fuentes.
+            Seleccione una dimensión para conocer qué mide, cómo se calcula y sus fuentes.
           </p>
 
-          {/* Explorador de dimensiones: lista seleccionable + panel de detalle al lado */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
-            {/* Las 5 dimensiones */}
-            <div className="space-y-2">
+          {/* Explorador de dimensiones: barras arriba (todo el ancho), detalle abajo */}
+          <div className="space-y-5">
+            {/* Las dimensiones como barras horizontales */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {DIMENSIONES.map((d, i) => {
                 const val = radarScores[i];
                 const active = selectedDim === i;
@@ -805,7 +1079,7 @@ export default function MateriaFicha({ materiaId, materiaData, sugerenciasDocent
                   </button>
                 );
               })}
-              <div className="pt-2 border-t border-magenta/10 mt-1 flex items-center justify-between px-2.5">
+              <div className="sm:col-span-2 pt-2 border-t border-magenta/10 mt-1 flex items-center justify-between px-2.5">
                 <span className="text-xs font-bold text-ink">Promedio general</span>
                 <span className="text-sm font-bold text-magenta">
                   {Math.round(radarScores.reduce((a, b) => a + b, 0) / radarScores.length)}%
@@ -817,6 +1091,7 @@ export default function MateriaFicha({ materiaId, materiaData, sugerenciasDocent
             {(() => {
               const d = DIMENSIONES[selectedDim];
               const val = radarScores[selectedDim];
+              const dg = desglosarDimension(materiaId, d.key, { evidenciaLive: planeadorEvidencia, semantica });
               return (
                 <div key={d.key} className="bg-white border border-magenta/15 rounded-xl p-4 shadow-sm animate-fade-in">
                   <div className="flex items-center gap-2 mb-3">
@@ -827,7 +1102,7 @@ export default function MateriaFicha({ materiaId, materiaData, sugerenciasDocent
                     <span className="ml-auto text-base font-bold text-magenta">{val}%</span>
                   </div>
 
-                  <div className="space-y-3">
+                  <div className="space-y-3 max-w-3xl">
                     <div>
                       <span className="block text-[9px] font-bold uppercase tracking-wider text-magenta mb-1">Qué mide (grado de correspondencia)</span>
                       <p className="text-xs text-ink-2 leading-relaxed">{d.desc}</p>
@@ -840,46 +1115,100 @@ export default function MateriaFicha({ materiaId, materiaData, sugerenciasDocent
                       <div>
                         <span className="block text-[9px] font-bold uppercase tracking-wider text-magenta mb-1">Cómo se calculó</span>
                         <p className="text-xs text-ink-2 leading-relaxed">{d.calculo}</p>
-                        {d.factores && (
-                          <InfoPopover
-                            align="right"
-                            bubbleWidth="w-72"
-                            label="Ver escala de ponderación"
-                            className="inline-flex items-center gap-1 mt-1.5 text-[11px] font-semibold text-magenta hover:text-magenta-dark cursor-pointer transition-colors"
-                            content={
-                              <>
-                                <strong className="block text-white mb-1.5">Escala de ponderación</strong>
-                                <span className="block text-white/60 mb-1 text-[9px] uppercase tracking-wider font-bold">Bandas del puntaje</span>
-                                <div className="space-y-1 mb-2.5">
-                                  {[
-                                    { r: '85 – 100', e: 'Muy alto', c: '#E6007E' },
-                                    { r: '70 – 84', e: 'Alto', c: '#ff4fb0' },
-                                    { r: '0 – 69', e: 'En desarrollo', c: '#f7b8db' },
-                                  ].map((b, bi) => (
-                                    <span key={bi} className="flex items-center gap-2 text-white/85">
-                                      <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: b.c }} />
-                                      <span className="font-semibold w-16">{b.r}</span>
-                                      <span className="text-white/70">{b.e}</span>
-                                    </span>
-                                  ))}
+                      </div>
+                    )}
+                    {d.metodologia && (
+                      <div>
+                        <span className="block text-[9px] font-bold uppercase tracking-wider text-magenta mb-1">Técnica empleada y fuente</span>
+                        <p className="text-xs font-semibold text-ink leading-snug">{d.metodologia.tecnica}</p>
+                        <p className="text-xs text-ink-2/80 leading-relaxed mt-1">{d.metodologia.descripcion}</p>
+                        <p className="text-xs text-ink-2/75 leading-relaxed mt-1.5">
+                          <span className="font-semibold text-ink-2">Corpus y fuente: </span>{d.metodologia.corpus}
+                        </p>
+                      </div>
+                    )}
+                    {dg && (
+                      <div className="bg-magenta/[0.03] border border-magenta/15 rounded-lg p-3">
+                        <button
+                          onClick={() => setShowCalculo(!showCalculo)}
+                          className="flex items-center gap-2 w-full text-left text-[10px] font-bold uppercase tracking-wider text-magenta mb-2 cursor-pointer"
+                        >
+                          Cálculo de esta materia
+                          {semantica ? (
+                            <span className="inline-flex items-center gap-1 normal-case tracking-normal text-[9px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-full px-1.5 py-px">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                              evaluación IA · α {ALPHA_SEMANTICA}
+                            </span>
+                          ) : evaluando ? (
+                            <span className="inline-flex items-center gap-1 normal-case tracking-normal text-[9px] font-semibold text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-1.5 py-px">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                              evaluando con IA…
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 normal-case tracking-normal text-[9px] font-semibold text-ink-2/60 bg-ink-2/5 border border-ink-2/15 rounded-full px-1.5 py-px">
+                              prior experto
+                            </span>
+                          )}
+                          <svg xmlns="http://www.w3.org/2000/svg" className={`ml-auto w-3.5 h-3.5 shrink-0 transition-transform duration-300 ${showCalculo ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                          </svg>
+                        </button>
+                        {!showCalculo && (
+                          <p className="text-[11px] text-ink-2/55 italic">Toque para ver el desglose factor por factor y la fórmula.</p>
+                        )}
+
+                        {showCalculo && (
+                        <div className="animate-fade-in">
+                        {/* Por qué estos pesos */}
+                        {d.porquePesos && (
+                          <p className="text-xs text-ink-2/85 leading-relaxed mb-3">
+                            <span className="font-semibold text-ink-2">Por qué estos pesos: </span>{d.porquePesos}
+                          </p>
+                        )}
+
+                        {/* Cada factor: valoración (con su banda) × peso = aporte */}
+                        <div className="space-y-2.5">
+                          {dg.filas.map((fila, fi) => {
+                            const banda = bandaDe(fila.valoracion);
+                            return (
+                              <div key={fi} className="border-t border-magenta/10 pt-2.5 first:border-t-0 first:pt-0">
+                                <div className="flex items-baseline justify-between gap-2">
+                                  <span className="text-sm text-ink leading-tight">{fila.nombre}</span>
+                                  <span className="text-sm whitespace-nowrap tabular-nums">
+                                    <span className="text-ink-2">{fila.valoracion}</span>
+                                    <span className="text-ink-2/50"> × {fila.peso}% = </span>
+                                    <span className="font-semibold text-magenta">{fila.aporte.toFixed(1)}</span>
+                                  </span>
                                 </div>
-                                <span className="block text-white/60 mb-1 text-[9px] uppercase tracking-wider font-bold">Factores ponderados</span>
-                                <div className="space-y-1">
-                                  {d.factores.map((f, fi) => (
-                                    <span key={fi} className="flex items-center justify-between gap-3 text-white/85">
-                                      <span>{f.nombre}</span>
-                                      <span className="font-bold shrink-0">{f.peso}%</span>
-                                    </span>
-                                  ))}
+                                <div className="flex items-start gap-1.5 mt-1">
+                                  <span className="w-2 h-2 rounded-full shrink-0 mt-[5px]" style={{ backgroundColor: banda.color }} />
+                                  <span className="text-[11px] text-ink-2/70 leading-snug">
+                                    <span className="font-semibold text-ink-2/90">{fila.valoracion} · {banda.etiqueta} ({banda.min}–{banda.max}):</span> {banda.criterio}
+                                  </span>
                                 </div>
-                              </>
-                            }
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
-                            </svg>
-                            Ver escala de ponderación
-                          </InfoPopover>
+                                {fila.sustento && (
+                                  <p className="text-[11px] text-ink-2/65 leading-snug mt-1 pl-3.5">
+                                    <span className="font-semibold text-magenta/70">Cómo se obtuvo · </span>{fila.sustento}
+                                  </p>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Fórmula y total */}
+                        <div className="mt-3 pt-3 border-t border-magenta/15">
+                          <p className="text-[11px] text-ink-2/65 italic mb-1.5">
+                            Puntaje = Σ (valoración × peso) ÷ 100
+                          </p>
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-ink-2">
+                              {dg.filas.map(f => f.aporte.toFixed(1)).join(' + ')} ÷ 100
+                            </span>
+                            <span className="text-base font-bold text-magenta tabular-nums">= {dg.total}%</span>
+                          </div>
+                        </div>
+                        </div>
                         )}
                       </div>
                     )}
@@ -949,6 +1278,8 @@ export default function MateriaFicha({ materiaId, materiaData, sugerenciasDocent
         onRestoreRec={onRestoreRec}
         onSaveSugerencia={onSaveSugerencia}
         onDeleteSugerencia={onDeleteSugerencia}
+        onIncluir={incluirEnPlaneador}
+        planeadorTexto={planeadorTexto}
       />
 
       {/* Referencias normativas y contexto */}
@@ -964,7 +1295,7 @@ export default function MateriaFicha({ materiaId, materiaData, sugerenciasDocent
           >
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
           </svg>
-          Referencias normativas y contexto ({REFERENCIAS.length + 2})
+          Referencias normativas y contexto ({REFERENCIAS.length + 3})
         </button>
 
         {showRefs && (
@@ -992,6 +1323,35 @@ export default function MateriaFicha({ materiaId, materiaData, sugerenciasDocent
                 <p className="text-[10px] text-ink-2/50 mt-2 italic">Fuentes: {CONTEXTO_SECTOR.fuentes}</p>
               </div>
             </div>
+            <div className="bg-white border border-magenta/10 rounded-xl p-4">
+              <h4 className="text-[0.65rem] tracking-wide uppercase font-bold text-magenta mb-1.5">
+                Clasificación ocupacional — DANE · CUOC 2025
+              </h4>
+              <p className="text-xs text-ink-2 leading-relaxed">{CONTEXTO_CUOC.resumen}</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5 mt-3">
+                <div>
+                  <span className="block text-[9px] font-bold uppercase tracking-wider text-magenta mb-1">Conocimientos requeridos</span>
+                  <ul className="space-y-1">
+                    {CONTEXTO_CUOC.conocimientos.map((c, i) => (
+                      <li key={i} className="text-[11px] text-ink-2/80 pl-3 relative before:content-[''] before:absolute before:left-0 before:top-[6px] before:w-1.5 before:h-1.5 before:rounded-full before:bg-magenta/30">
+                        {c}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <span className="block text-[9px] font-bold uppercase tracking-wider text-magenta mb-1">Destrezas requeridas</span>
+                  <ul className="space-y-1">
+                    {CONTEXTO_CUOC.destrezas.map((d, i) => (
+                      <li key={i} className="text-[11px] text-ink-2/80 pl-3 relative before:content-[''] before:absolute before:left-0 before:top-[6px] before:w-1.5 before:h-1.5 before:rounded-full before:bg-magenta/30">
+                        {d}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+              <p className="text-[10px] text-ink-2/50 mt-3 italic">Fuente: {CONTEXTO_CUOC.fuentes}</p>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {REFERENCIAS.map((r, i) => (
                 <ReferenciaLink key={i} r={r} />
@@ -1003,12 +1363,20 @@ export default function MateriaFicha({ materiaId, materiaData, sugerenciasDocent
 
       {/* Recomendaciones didácticas */}
       {didacticas.length > 0 && (
-        <section>
+        <section className="bg-gradient-to-br from-indigo-50/80 to-sky-50/80 border border-indigo-200/60 rounded-2xl p-5">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-indigo-700 bg-indigo-100 border border-indigo-200 rounded-full px-2 py-0.5">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+              </svg>
+              Recomendación según la evaluación
+            </span>
+          </div>
           <h3 className="font-heading font-bold text-base text-ink mb-1">
-            Didácticas Consultor Tech
+            Estrategias didácticas recomendadas
           </h3>
           <p className="text-xs text-ink-2 mb-4">
-            Estrategias de aula alineadas con la iniciativa Consultor Tech: cada actividad forma no solo la competencia técnica sino la capacidad de interpretar, diseñar o asesorar según el nivel del bootcamp.
+            A partir del análisis de alineación, se sugieren estas estrategias de aula para fortalecer las dimensiones evaluadas: cada actividad forma no solo la competencia técnica sino la capacidad de interpretar, diseñar o asesorar según el nivel del programa.
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {didacticas.map((d, i) => (
