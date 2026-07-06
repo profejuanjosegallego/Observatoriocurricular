@@ -1,7 +1,18 @@
 async function request(url, options = {}) {
   const res = await fetch(url, options);
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || `Error ${res.status}`);
+  // Se lee como texto para tolerar respuestas vacías o no-JSON (p. ej. un timeout del proxy),
+  // que de otro modo harían fallar res.json() con "Unexpected end of JSON input".
+  const texto = await res.text();
+  let data = null;
+  if (texto) {
+    try {
+      data = JSON.parse(texto);
+    } catch {
+      throw new Error(`El servidor devolvió una respuesta no válida (HTTP ${res.status}). Intente de nuevo.`);
+    }
+  }
+  if (!res.ok) throw new Error((data && data.error) || `Error ${res.status}`);
+  if (data === null) throw new Error('El servidor no devolvió datos. Intente de nuevo.');
   return data;
 }
 
@@ -44,6 +55,12 @@ export const sintesisService = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ materiaId, clasificar: true, texto }),
+    }),
+  viabilidad: (materiaId, propuestas) =>
+    request('/api/sintesis', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ materiaId, viabilidad: true, propuestas }),
     }),
 };
 
@@ -122,6 +139,18 @@ export const sugerenciasService = {
     }),
   eliminar: (id) =>
     request(`/api/sugerencias?id=${id}`, { method: 'DELETE' }),
+};
+
+export const necesidadesService = {
+  listar: () => request('/api/sugerencias?banco=1'),
+  guardar: (body) =>
+    request('/api/sugerencias?banco=1', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...body, banco: true }),
+    }),
+  eliminar: (id) =>
+    request(`/api/sugerencias?banco=1&id=${id}`, { method: 'DELETE' }),
 };
 
 export const usuariosService = {

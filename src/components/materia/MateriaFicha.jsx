@@ -497,6 +497,166 @@ function SugerenciasAlineacion({ materiaId, sugerenciasDocentes, recOverrides, c
   );
 }
 
+const EJE_CORTO = Object.fromEntries(DIMENSIONES.map(d => [d.key, d.corto]));
+
+const VIAB_STYLE = {
+  alta:  { label: 'Viabilidad alta',  dot: 'bg-emerald-500', chip: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  media: { label: 'Viabilidad media', dot: 'bg-amber-500',   chip: 'bg-amber-50 text-amber-700 border-amber-200' },
+  baja:  { label: 'Viabilidad baja',  dot: 'bg-slate-400',   chip: 'bg-slate-100 text-slate-600 border-slate-200' },
+};
+
+// Análisis de viabilidad con IA: evalúa las propuestas (base + docentes) y las prioriza por
+// viabilidad de implementación, indicando con qué ejes de alineación se relaciona cada una.
+function AnalisisViabilidad({ materiaId, sugerenciasDocentes, planeadorTexto, canEdit }) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [data, setData] = useState(null);
+
+  const recs = (RECOMENDACIONES_PLANEADOR[materiaId] || []).filter(
+    r => !(planeadorTexto && r.tema && planeadorTexto.includes(r.tema))
+  );
+  const docentes = (sugerenciasDocentes || []).filter(
+    s => !(planeadorTexto && s.titulo && planeadorTexto.includes(s.titulo))
+  );
+  const propuestas = [
+    ...recs.map(r => ({ tema: r.tema, justificacion: r.justificacion, origen: 'base' })),
+    ...docentes.map(s => ({ tema: s.titulo, justificacion: s.descripcion || '', origen: 'docente', profesor: s.profesor })),
+  ];
+
+  async function analizar() {
+    setLoading(true);
+    setError('');
+    try {
+      const res = await sintesisService.viabilidad(materiaId, propuestas);
+      if (!res || !Array.isArray(res.ranking) || res.ranking.length === 0) {
+        setData(null);
+        setError('La IA no devolvió un análisis válido. Vuelva a intentarlo en unos segundos.');
+        return;
+      }
+      setData(res);
+    } catch (e) {
+      setData(null);
+      setError(e.message || 'No fue posible generar el análisis.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (propuestas.length === 0) return null;
+
+  return (
+    <section className="bg-white border border-magenta/15 rounded-2xl p-5">
+      <div className="flex items-start gap-3">
+        <div className="w-9 h-9 rounded-xl bg-magenta/8 flex items-center justify-center text-magenta shrink-0">
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+          </svg>
+        </div>
+        <div className="min-w-0">
+          <h3 className="font-heading font-bold text-base text-ink">Análisis de viabilidad con IA</h3>
+          <p className="text-xs text-ink-2 leading-relaxed">
+            Con el análisis de la materia, las fuentes y las cuatro dimensiones de alineación, la IA evalúa las {propuestas.length} propuestas y prioriza cuál es más viable de implementar y con qué ejes se alinea cada una.
+          </p>
+        </div>
+      </div>
+
+      {!data && (
+        <div className="mt-4">
+          {canEdit ? (
+            <button
+              onClick={analizar}
+              disabled={loading}
+              className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-magenta to-magenta-dark text-white font-heading font-semibold text-sm px-5 py-2.5 shadow-lg shadow-magenta/25 hover:shadow-xl hover:scale-[1.02] transition-all duration-300 cursor-pointer disabled:opacity-70 disabled:cursor-default disabled:hover:scale-100"
+            >
+              {loading ? (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  Analizando propuestas…
+                </>
+              ) : (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  Analizar viabilidad con IA
+                </>
+              )}
+            </button>
+          ) : (
+            <p className="text-xs text-ink-2/70 italic">Identifíquese para generar el análisis de viabilidad de las propuestas.</p>
+          )}
+          {error && <p className="text-xs text-red-600 mt-2">{error}</p>}
+        </div>
+      )}
+
+      {data && (
+        <div className="mt-4 space-y-3">
+          {data.comentario && (
+            <div className="flex items-start gap-2 bg-magenta/[0.04] border border-magenta/15 rounded-xl p-3">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-magenta shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <p className="text-xs text-ink leading-relaxed"><span className="font-semibold">Recomendación:</span> {data.comentario}</p>
+            </div>
+          )}
+          <ol className="space-y-2.5">
+            {data.ranking.map((r, i) => {
+              const vs = VIAB_STYLE[r.viabilidad] || VIAB_STYLE.media;
+              const destacada = r.indice === data.masViable;
+              return (
+                <li key={i} className={`rounded-xl p-3.5 border transition-colors ${destacada ? 'border-magenta/40 bg-magenta/[0.03] ring-1 ring-magenta/15' : 'border-gray-100 bg-gray-50/60'}`}>
+                  <div className="flex items-start gap-3">
+                    <span className="w-6 h-6 rounded-full bg-white border border-gray-200 text-ink-2 text-xs font-bold grid place-items-center shrink-0 mt-0.5">{i + 1}</span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        {destacada && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-magenta">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                              <path d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.562.562 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.562.562 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
+                            </svg>
+                            Más viable
+                          </span>
+                        )}
+                        <span className={`inline-flex items-center gap-1.5 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${vs.chip}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${vs.dot}`} /> {vs.label}
+                        </span>
+                        {r.origen === 'docente' && (
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200/60 text-amber-700">
+                            Docente{r.profesor ? ' · ' + r.profesor : ''}
+                          </span>
+                        )}
+                      </div>
+                      <h4 className="font-heading font-semibold text-sm text-ink leading-snug">{r.tema}</h4>
+                      {r.razon && <p className="text-xs text-ink-2 leading-relaxed mt-1">{r.razon}</p>}
+                      {r.ejes.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                          <span className="text-[9px] font-bold uppercase tracking-wider text-ink-2/45">Ejes:</span>
+                          {r.ejes.map(e => (
+                            <span key={e} className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-magenta/8 text-magenta-dark border border-magenta/15">{EJE_CORTO[e] || e}</span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+          {canEdit && (
+            <button onClick={analizar} disabled={loading} className="text-[11px] text-ink-2/60 hover:text-magenta transition-colors cursor-pointer disabled:opacity-60">
+              {loading ? 'Actualizando…' : 'Volver a analizar'}
+            </button>
+          )}
+          {error && <p className="text-xs text-red-600">{error}</p>}
+        </div>
+      )}
+    </section>
+  );
+}
+
 export default function MateriaFicha({ materiaId, materiaData, aportesCount = 0, sugerenciasDocentes = [], recOverrides = [], onEditRec, onDeleteRec, onRestoreRec, onSaveSugerencia, onDeleteSugerencia, onUpdate }) {
   const { user } = useUser();
   const m = getMateria(materiaId);
@@ -504,6 +664,8 @@ export default function MateriaFicha({ materiaId, materiaData, aportesCount = 0,
   if (!m) return null;
 
   const canEdit = !!user?.nombre;
+  // Solo el super administrador puede incluir sugerencias directamente en el planeador.
+  const isSuperAdmin = user?.rol === 'superadmin';
   const [showRefs, setShowRefs] = useState(false);
   const [showAnalisis, setShowAnalisis] = useState(false);
   const [showCalculo, setShowCalculo] = useState(false);
@@ -513,6 +675,7 @@ export default function MateriaFicha({ materiaId, materiaData, aportesCount = 0,
   const [semantica, setSemantica] = useState(null);
   const [evaluando, setEvaluando] = useState(false);
   const [refreshTick, setRefreshTick] = useState(0);
+  const alineacionPersistRef = useRef(null);
 
   const alin = semantica ? calcularAlineacion(materiaId, semantica) : ALINEACION[materiaId];
   const didacticas = DIDACTICAS[materiaId] || [];
@@ -544,6 +707,24 @@ export default function MateriaFicha({ materiaId, materiaData, aportesCount = 0,
       .finally(() => { if (!cancelado) setEvaluando(false); });
     return () => { cancelado = true; };
   }, [materiaId, refreshTick]);
+
+  // Persiste en la BD el puntaje del radar YA mezclado con la IA, para que el home lo consulte
+  // sin recalcular. Solo se guarda cuando la evaluación IA está disponible (no el prior experto solo).
+  useEffect(() => {
+    if (!semantica) return;
+    const blended = calcularAlineacion(materiaId, semantica);
+    if (!blended) return;
+    const radar = {};
+    let suma = 0;
+    for (const d of DIMENSIONES) { const v = blended[d.key] || 0; radar[d.key] = v; suma += v; }
+    radar.promedio = Math.round(suma / DIMENSIONES.length);
+    const prev = materiaData?.alineacionRadar;
+    const igual = prev && DIMENSIONES.every(d => prev[d.key] === radar[d.key]) && prev.promedio === radar.promedio;
+    const firma = materiaId + ':' + DIMENSIONES.map(d => radar[d.key]).join(',');
+    if (igual || alineacionPersistRef.current === firma) return;
+    alineacionPersistRef.current = firma;
+    materiasService.guardar({ materiaId, alineacionRadar: radar }).catch(() => {});
+  }, [semantica, materiaId, materiaData]);
 
   // Definición colaborativa del consultor: si "Relación con el Consultor Tech" está vacía,
   // se genera UNA vez con IA (a partir de los aportes) y se guarda. No se regenera si ya existe.
@@ -1278,8 +1459,16 @@ export default function MateriaFicha({ materiaId, materiaData, aportesCount = 0,
         onRestoreRec={onRestoreRec}
         onSaveSugerencia={onSaveSugerencia}
         onDeleteSugerencia={onDeleteSugerencia}
-        onIncluir={incluirEnPlaneador}
+        onIncluir={isSuperAdmin ? incluirEnPlaneador : null}
         planeadorTexto={planeadorTexto}
+      />
+
+      {/* Análisis de viabilidad de las propuestas con IA */}
+      <AnalisisViabilidad
+        materiaId={materiaId}
+        sugerenciasDocentes={sugerenciasDocentes}
+        planeadorTexto={planeadorTexto}
+        canEdit={canEdit}
       />
 
       {/* Referencias normativas y contexto */}

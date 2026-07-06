@@ -53,6 +53,23 @@ module.exports = async (req, res) => {
       if (b.relacionConsultorTech !== undefined) update.relacionConsultorTech = String(b.relacionConsultorTech).trim();
       if (b.editadoPor) update.editadoPor = String(b.editadoPor).trim();
       if (b.definicionSintesis !== undefined) update.definicionSintesis = String(b.definicionSintesis).trim();
+      // Puntaje del radar de alineación (IA-mezclado) calculado en la ficha, para que el home lo consulte.
+      if (b.alineacionRadar && typeof b.alineacionRadar === 'object') {
+        const claves = ['consultorTech', 'marcoNacional', 'empleabilidad', 'estrategiaPedagogica'];
+        const radar = {};
+        for (const k of claves) {
+          const v = Number(b.alineacionRadar[k]);
+          if (Number.isFinite(v)) radar[k] = Math.max(0, Math.min(100, Math.round(v)));
+        }
+        if (claves.every(k => k in radar)) {
+          const prom = Number(b.alineacionRadar.promedio);
+          radar.promedio = Number.isFinite(prom)
+            ? Math.max(0, Math.min(100, Math.round(prom)))
+            : Math.round(claves.reduce((s, k) => s + radar[k], 0) / claves.length);
+          update.alineacionRadar = radar;
+          update.alineacionRadarFecha = now;
+        }
+      }
       await db.collection('materias').updateOne(
         { materiaId },
         { $set: update, $setOnInsert: { createdAt: now } },

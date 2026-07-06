@@ -2,6 +2,7 @@ import { useState, useRef, useCallback } from 'react';
 import { Link, useOutletContext } from 'react-router-dom';
 import { NIVELES, getMateriasPorNivel } from '../data/materias';
 import { INFORME_PERTINENCIA } from '../data/alineacion';
+import EstadoMaterias from '../components/dashboard/EstadoMaterias';
 
 const SABERES = [
   {
@@ -540,8 +541,8 @@ export default function DashboardPage() {
           <div className="w-2 h-6 rounded bg-gradient-to-b from-rose-500 to-magenta" />
           <h3 className="font-heading font-bold text-lg text-ink">Matriz de brechas del programa</h3>
         </div>
-        <p className="text-sm text-ink-2 mb-5 max-w-3xl">
-          Diagnóstico estratégico que contrasta la oferta curricular actual con la demanda real del sector TI en cada eje del programa. Es la brújula del Observatorio: señala hacia dónde debe evolucionar la formación.
+        <p className="text-sm text-ink-2 mb-5 max-w-3xl leading-relaxed">
+          Instrumento de diagnóstico estratégico que contrasta, eje por eje, la oferta curricular vigente del programa con la demanda real del sector de las tecnologías de la información. La lectura se construye a partir de la triangulación de tres fuentes: el panel de expertos sectoriales de CESDE, el Estudio de Empleabilidad y Talento Digital — Colombia 2025 (Cenisoft) y la Clasificación Única de Ocupaciones para Colombia (CUOC 2025) del DANE. Para cada eje se identifica la oferta actual, la demanda del mercado, la acción curricular sugerida y una ruta concreta de tecnologías, cursos y certificaciones a implementar. Constituye la brújula del Observatorio: no descarta lo vigente, sino que señala con evidencia hacia dónde debe evolucionar la formación.
         </p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {INFORME_PERTINENCIA.ejesBrechas.map((b, i) => (
@@ -578,6 +579,28 @@ export default function DashboardPage() {
                   <p className="text-[11px] text-ink-2 leading-relaxed">{b.accion}</p>
                 </div>
               </div>
+
+              {b.descripcion && (
+                <p className="text-[11px] text-ink-2/80 leading-relaxed mt-3 pt-3 border-t border-gray-100">
+                  {b.descripcion}
+                </p>
+              )}
+
+              {b.formacion && b.formacion.length > 0 && (
+                <div className="mt-3">
+                  <span className="block text-[9px] font-bold uppercase tracking-wider text-magenta mb-2">Tecnologías, cursos y certificaciones a implementar</span>
+                  <ul className="space-y-1.5">
+                    {b.formacion.map((f, fi) => (
+                      <li key={fi} className="flex items-start gap-2 text-[11px] text-ink-2 leading-relaxed">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5 text-magenta shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span>{f}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -585,6 +608,9 @@ export default function DashboardPage() {
           {INFORME_PERTINENCIA.meta.diagnostico} <span className="not-italic">·</span> Fuente: {INFORME_PERTINENCIA.meta.fuente}.
         </p>
       </div>
+
+      {/* Estado de alineación por semestre — dashboard comparativo */}
+      <EstadoMaterias />
 
       {/* Saberes del programa — Colapsable */}
       <div>

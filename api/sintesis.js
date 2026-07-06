@@ -199,6 +199,88 @@ Devuelve SOLO JSON: {"componentes": [claves de las componentes a las que realmen
       return res.status(200).json({ componentes, comentario: String(parsed.comentario || '') });
     }
 
+    // --- Análisis de viabilidad de las propuestas de mejora con IA (ranking + ejes) ---
+    if (b.viabilidad) {
+      const propuestas = Array.isArray(b.propuestas)
+        ? b.propuestas.filter(p => p && String(p.tema || '').trim())
+        : [];
+      if (!propuestas.length) return res.status(400).json({ error: 'No hay propuestas para analizar en este submódulo.' });
+      const key = process.env.GROQ_API_KEY;
+      if (!key) return res.status(500).json({ error: 'Falta la variable de entorno GROQ_API_KEY' });
+
+      const dbv = await getDb();
+      const crypto = require('crypto');
+      const lineas = propuestas.map((p, i) =>
+        `${i}. [${p.origen === 'docente' ? 'Docente' + (p.profesor ? ' ' + p.profesor : '') : 'Base'}] ${String(p.tema).trim()} — ${String(p.justificacion || '').trim()}`
+      );
+      const hash = crypto.createHash('sha1').update(materiaId + '\n' + lineas.join('\n')).digest('hex');
+      const cached = await dbv.collection('viabilidad_cache').findOne({ materiaId, hash });
+      if (cached && cached.resultado) return res.status(200).json({ ...cached.resultado, cache: true });
+
+      const sys = 'Eres un consultor experto en diseño curricular por competencias para programas técnicos laborales de desarrollo de software en Colombia (MNC, Decreto 1649 de 2021) y conoces la demanda del sector TI (estudio de empleabilidad Cenisoft 2025 y CUOC 2025 del DANE). Evalúas la viabilidad de implementar propuestas de mejora en el planeador de una materia, sopesando el esfuerzo/costo, el impacto formativo y la coherencia con el nivel técnico laboral y los recursos del programa. Respondes SIEMPRE en español, en tercera persona, y ÚNICAMENTE con un objeto JSON.';
+      const usr = `Materia: "${info.nombre}" (Nivel ${info.nivel}).
+
+Los cuatro ejes de alineación del programa (clave: definición):
+- consultorTech: Perfil Consultor Tech — interpretar al cliente, diseñar soluciones, comunicar negocio-técnica y acompañar la implementación.
+- marcoNacional: Marco Nacional de Cualificaciones — saber, saber-hacer y saber-ser (autonomía y responsabilidad).
+- empleabilidad: Empleabilidad — enfoques TI más demandados (Big Data y analítica, IA, nube, ciberseguridad, full-stack, DevOps) e inserción laboral.
+- estrategiaPedagogica: Estrategia pedagógica — aprendizaje basado en proyectos, uso de IA en el aula, casos reales y evaluación por evidencias.
+
+Propuestas de mejora a evaluar (índice. [origen] tema — justificación):
+${lineas.join('\n')}
+
+Para CADA propuesta determina:
+1. "viabilidad": "alta", "media" o "baja" — qué tan viable es implementarla ya, sopesando esfuerzo/costo, impacto formativo y coherencia con el nivel técnico laboral.
+2. "ejes": lista con las claves de los ejes que la propuesta fortalece realmente (una o varias; [] si ninguno).
+3. "razon": una sola frase que justifique la viabilidad y el impacto.
+
+Ordena el "ranking" de la MÁS viable a la MENOS viable. Indica en "masViable" el índice (de la lista anterior) de la propuesta más viable de implementar, y en "comentario" una recomendación general breve (una o dos frases) sobre por dónde empezar.
+
+Devuelve SOLO JSON con esta forma exacta:
+{"ranking":[{"indice":0,"tema":"...","viabilidad":"alta","ejes":["empleabilidad"],"razon":"..."}],"masViable":0,"comentario":"..."}`;
+
+      const vr = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+          temperature: 0.2,
+          max_tokens: 1400,
+          response_format: { type: 'json_object' },
+          messages: [{ role: 'system', content: sys }, { role: 'user', content: usr }],
+        }),
+      });
+      const vd = await vr.json();
+      if (!vr.ok) return res.status(502).json({ error: 'IA: ' + ((vd.error && vd.error.message) || vr.status) });
+      let pv = {};
+      try { pv = JSON.parse(vd.choices[0].message.content); } catch { pv = {}; }
+      const validEjes = ['consultorTech', 'marcoNacional', 'empleabilidad', 'estrategiaPedagogica'];
+      const validViab = ['alta', 'media', 'baja'];
+      const rankingRaw = Array.isArray(pv.ranking) ? pv.ranking : [];
+      const ranking = rankingRaw.map(r => {
+        const idx = Number.isInteger(r.indice) ? r.indice : -1;
+        const base = propuestas[idx] || {};
+        return {
+          indice: idx,
+          tema: String(r.tema || base.tema || '').trim(),
+          origen: base.origen || 'base',
+          profesor: base.profesor || null,
+          viabilidad: validViab.includes(r.viabilidad) ? r.viabilidad : 'media',
+          ejes: Array.isArray(r.ejes) ? r.ejes.filter(e => validEjes.includes(e)) : [],
+          razon: String(r.razon || '').trim(),
+        };
+      }).filter(r => r.tema);
+      if (!ranking.length) return res.status(502).json({ error: 'La IA no devolvió un análisis válido.' });
+      const masViable = Number.isInteger(pv.masViable) ? pv.masViable : ranking[0].indice;
+      const resultado = { ranking, masViable, comentario: String(pv.comentario || '').trim() };
+      await dbv.collection('viabilidad_cache').updateOne(
+        { materiaId, hash },
+        { $set: { materiaId, hash, resultado, modelo: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile', fecha: new Date() } },
+        { upsert: true }
+      );
+      return res.status(200).json(resultado);
+    }
+
     const db = await getDb();
     const aportes = await db.collection('aportes').find({ materiaId }).toArray();
     if (!aportes.length) {

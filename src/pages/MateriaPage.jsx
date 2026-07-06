@@ -259,6 +259,32 @@ export default function MateriaPage() {
                   Diseñar PI con IA
                 </Link>
               </div>
+
+              {/* Subsección: Vigilancia Tecnológica e Inteligencia Competitiva */}
+              <Link
+                to="/vigilancia-tecnologica"
+                className="group block rounded-2xl border border-magenta/20 bg-gradient-to-br from-magenta/[0.04] to-transparent p-5 hover:shadow-lg hover:border-magenta/40 transition-all duration-300"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-magenta to-magenta-soft text-white grid place-items-center shrink-0 shadow-md shadow-magenta/25">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M8.111 16.404a5.5 5.5 0 010-7.778m7.778 0a5.5 5.5 0 010 7.778M12 20v-8m0 0a1 1 0 100-2 1 1 0 000 2zM4.929 19.071a10 10 0 010-14.142m14.142 0a10 10 0 010 14.142" />
+                    </svg>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <h4 className="font-heading font-bold text-base text-ink group-hover:text-magenta transition-colors">Vigilancia Tecnológica e Inteligencia Competitiva</h4>
+                    </div>
+                    <p className="text-sm text-ink-2 leading-relaxed">
+                      Inicie un proceso para captar necesidades reales de las empresas y convertirlas en retos realizables por los estudiantes. Alimente el banco de retos del programa.
+                    </p>
+                  </div>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-magenta shrink-0 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                  </svg>
+                </div>
+              </Link>
+
               <IntegradorPanel nivel={m.nivel} materiaId={materiaId} />
             </>
           )}

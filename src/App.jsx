@@ -4,6 +4,7 @@ import AppLayout from './components/layout/AppLayout';
 import DashboardPage from './pages/DashboardPage';
 import MateriaPage from './pages/MateriaPage';
 import GeneradorPage from './pages/GeneradorPage';
+import VigilanciaPage from './pages/VigilanciaPage';
 import NotFoundPage from './pages/NotFoundPage';
 
 export default function App() {
@@ -15,6 +16,7 @@ export default function App() {
             <Route index element={<DashboardPage />} />
             <Route path="materia/:materiaId" element={<MateriaPage />} />
             <Route path="generador" element={<GeneradorPage />} />
+            <Route path="vigilancia-tecnologica" element={<VigilanciaPage />} />
             <Route path="*" element={<NotFoundPage />} />
           </Route>
         </Routes>
