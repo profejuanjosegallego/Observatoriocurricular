@@ -131,6 +131,20 @@ export default function EstadoMaterias() {
     return () => { vivo = false; };
   }, []);
 
+  // Índice global (promedio de los 9 módulos) y desglose por nivel.
+  const NIVEL_COLOR = { 1: '#6366f1', 2: '#E6007E', 3: '#10b981' };
+  const resumenNiveles = NIVELES.map(nivel => {
+    const materias = getMateriasPorNivel(nivel.nivel);
+    const proms = materias.map(m => radars[m.id]?.promedio).filter(v => typeof v === 'number');
+    const avg = proms.length ? Math.round(proms.reduce((s, v) => s + v, 0) / proms.length) : 0;
+    return { nivel, avg, evaluadas: proms.length, total: materias.length, color: NIVEL_COLOR[nivel.nivel] };
+  });
+  const promsGlobal = MATERIAS.map(m => radars[m.id]?.promedio).filter(v => typeof v === 'number');
+  const globalAvg = promsGlobal.length ? Math.round(promsGlobal.reduce((s, v) => s + v, 0) / promsGlobal.length) : 0;
+  const R = 52;
+  const CIRC = 2 * Math.PI * R;
+  const dashOffset = CIRC * (1 - globalAvg / 100);
+
   return (
     <div>
       <div className="flex items-center gap-2 mb-2">
@@ -140,6 +154,61 @@ export default function EstadoMaterias() {
       <p className="text-sm text-ink-2 mb-5 max-w-3xl leading-relaxed">
         Panorama del estado actual de cada materia: su perfil de alineación en las cuatro dimensiones —evaluado con IA, igual que en la ficha— y la construcción colaborativa de su relación con el Consultor Tech. Las tres materias de cada semestre se muestran juntas para compararlas de un vistazo.
       </p>
+
+      {/* Índice global de alineación — resumen visual de los 9 módulos */}
+      <div className="bg-gradient-to-br from-ink to-[#2a1f30] text-white rounded-2xl p-6 md:p-8 mb-8 relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-56 h-56 bg-magenta/10 rounded-full -translate-y-1/3 translate-x-1/4" />
+        <div className="absolute bottom-0 left-1/4 w-40 h-40 bg-indigo-500/10 rounded-full translate-y-1/2" />
+        <div className="relative flex flex-col md:flex-row items-center gap-8">
+          {/* Anillo circular */}
+          <div className="relative shrink-0" style={{ width: 168, height: 168 }}>
+            <svg width="168" height="168" viewBox="0 0 120 120" className="-rotate-90">
+              <defs>
+                <linearGradient id="ringGlobal" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#F65BB0" />
+                  <stop offset="100%" stopColor="#E6007E" />
+                </linearGradient>
+              </defs>
+              <circle cx="60" cy="60" r={R} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="10" />
+              <circle
+                cx="60" cy="60" r={R} fill="none" stroke="url(#ringGlobal)" strokeWidth="10"
+                strokeLinecap="round" strokeDasharray={CIRC} strokeDashoffset={dashOffset}
+                style={{ transition: 'stroke-dashoffset 1.2s cubic-bezier(0.4, 0, 0.2, 1)' }}
+              />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className="font-heading font-extrabold text-4xl leading-none tabular-nums">{globalAvg}</span>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-white/50 mt-1">/ 100</span>
+            </div>
+          </div>
+
+          {/* Detalle y desglose por nivel */}
+          <div className="flex-1 w-full">
+            <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-magenta-soft bg-magenta/15 px-2.5 py-1 rounded-full mb-2">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+              Índice global del programa
+            </span>
+            <h4 className="font-heading font-bold text-xl text-white tracking-tight mb-5">Alineación global de los 9 módulos</h4>
+
+            <div className="space-y-3">
+              {resumenNiveles.map(({ nivel, avg, color }) => (
+                <div key={nivel.nivel} className="flex items-center gap-3">
+                  <span className="w-16 shrink-0 text-[11px] font-bold text-white/70">{nivel.nombre}</span>
+                  <div className="flex-1 h-2.5 rounded-full bg-white/10 overflow-hidden">
+                    <div
+                      className="h-full rounded-full"
+                      style={{ width: `${avg}%`, backgroundColor: color, transition: 'width 1.2s cubic-bezier(0.4, 0, 0.2, 1)' }}
+                    />
+                  </div>
+                  <span className="w-10 shrink-0 text-right font-heading font-bold text-sm text-white tabular-nums">{avg}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
 
       <div className="space-y-8">
         {NIVELES.map(nivel => {

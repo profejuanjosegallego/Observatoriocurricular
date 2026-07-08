@@ -541,7 +541,7 @@ export default function DashboardPage() {
           <div className="w-2 h-6 rounded bg-gradient-to-b from-rose-500 to-magenta" />
           <h3 className="font-heading font-bold text-lg text-ink">Matriz de brechas del programa</h3>
         </div>
-        <p className="text-sm text-ink-2 mb-5 max-w-3xl leading-relaxed">
+        <p className="text-sm text-ink-2 mb-5 leading-relaxed">
           Instrumento de diagnóstico estratégico que contrasta, eje por eje, la oferta curricular vigente del programa con la demanda real del sector de las tecnologías de la información. La lectura se construye a partir de la triangulación de tres fuentes: el panel de expertos sectoriales de CESDE, el Estudio de Empleabilidad y Talento Digital — Colombia 2025 (Cenisoft) y la Clasificación Única de Ocupaciones para Colombia (CUOC 2025) del DANE. Para cada eje se identifica la oferta actual, la demanda del mercado, la acción curricular sugerida y una ruta concreta de tecnologías, cursos y certificaciones a implementar. Constituye la brújula del Observatorio: no descarta lo vigente, sino que señala con evidencia hacia dónde debe evolucionar la formación.
         </p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

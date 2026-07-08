@@ -6,17 +6,26 @@ const STORAGE_KEY = 'matriz_consultor_user';
 
 export function UserProvider({ children }) {
   const [user, setUser] = useState(() => {
+    // Solo el superadmin conserva la sesión, y únicamente mientras la
+    // pestaña siga abierta (sessionStorage). Los usuarios normales no se
+    // recuerdan: al recargar deben volver a identificarse.
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      return stored ? JSON.parse(stored) : null;
+      const stored = sessionStorage.getItem(STORAGE_KEY);
+      const parsed = stored ? JSON.parse(stored) : null;
+      return parsed?.rol === 'superadmin' ? parsed : null;
     } catch {
       return null;
     }
   });
 
   useEffect(() => {
-    if (user) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
+    // Limpiamos cualquier sesión persistida por versiones anteriores.
+    try { localStorage.removeItem(STORAGE_KEY); } catch { /* noop */ }
+
+    if (user?.rol === 'superadmin') {
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(user));
+    } else {
+      sessionStorage.removeItem(STORAGE_KEY);
     }
   }, [user]);
 
@@ -32,6 +41,7 @@ export function UserProvider({ children }) {
 
   const logout = () => {
     setUser(null);
+    sessionStorage.removeItem(STORAGE_KEY);
     localStorage.removeItem(STORAGE_KEY);
   };
 
