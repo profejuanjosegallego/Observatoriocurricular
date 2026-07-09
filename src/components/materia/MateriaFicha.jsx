@@ -170,6 +170,28 @@ function ReferenciaLink({ r }) {
   );
 }
 
+// Renderiza un temario respetando los saltos de línea y convirtiendo las URLs en enlaces clicables.
+function TemarioTexto({ texto }) {
+  if (!texto) return null;
+  const urlRe = /(https?:\/\/[^\s)]+)/g;
+  return (
+    <div className="text-[11px] text-ink-2/90 leading-relaxed space-y-1">
+      {texto.split('\n').map((linea, i) => {
+        if (!linea.trim()) return null;
+        return (
+          <p key={i}>
+            {linea.split(urlRe).map((parte, j) =>
+              /^https?:\/\//.test(parte)
+                ? <a key={j} href={parte} target="_blank" rel="noopener noreferrer" className="text-magenta underline break-all hover:text-magenta-dark transition-colors">{parte}</a>
+                : parte
+            )}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
 function RecCard({ rec, indice, override, canEdit, onEdit, onDelete, onRestore, onIncluir }) {
   const [editing, setEditing] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -192,7 +214,7 @@ function RecCard({ rec, indice, override, canEdit, onEdit, onDelete, onRestore, 
     return (
       <div className="bg-red-50/50 border border-red-200/30 rounded-xl p-3 flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <span className="text-xs text-red-400 line-through">{rec.tema}</span>
+          <span className="text-xs text-red-400 line-through">{rec.titulo}</span>
           <p className="text-[10px] text-red-400 italic mt-0.5">
             Eliminada por {override.usuario} · {new Date(override.fecha).toLocaleDateString('es-CO')}
           </p>
@@ -206,8 +228,9 @@ function RecCard({ rec, indice, override, canEdit, onEdit, onDelete, onRestore, 
     );
   }
 
-  const displayTema = override?.accion === 'editado' ? override.tema : rec.tema;
+  const displayTema = override?.accion === 'editado' ? override.tema : rec.titulo;
   const displayJust = override?.accion === 'editado' ? override.justificacion : rec.justificacion;
+  const esContinua = !!rec.continua;
 
   function startEdit() {
     setTema(displayTema);
@@ -237,25 +260,30 @@ function RecCard({ rec, indice, override, canEdit, onEdit, onDelete, onRestore, 
   return (
     <div className="bg-white/80 border border-amber-200/30 rounded-xl p-4 hover:shadow-md transition-all duration-300 group">
       <div className="flex items-start gap-3">
-        <span className="inline-flex items-center justify-center w-16 h-7 rounded-lg bg-amber-100 text-amber-800 text-[11px] font-bold shrink-0 mt-0.5">
-          Sem. {rec.semana}
+        <span className="inline-flex items-center justify-center min-w-[64px] px-2 h-7 rounded-lg bg-amber-100 text-amber-800 text-[11px] font-bold shrink-0 mt-0.5 whitespace-nowrap">
+          {esContinua ? rec.semana : `Sem. ${rec.semana}`}
         </span>
         <div className="min-w-0 flex-1">
           <h4 className="font-heading font-bold text-sm text-ink mb-1">{displayTema}</h4>
+          {esContinua && (
+            <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200/70 rounded-full px-2 py-0.5 mb-1.5">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+              Uso sugerido en cada sesión (desde la semana 3)
+            </span>
+          )}
           <p className="text-xs text-ink-2 leading-relaxed mb-2">{displayJust}</p>
-          <div className="flex flex-wrap items-center gap-1.5">
-            {rec.fuentes.map((f, fi) => (
-              <span key={fi} className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200/60 text-amber-700">
-                {f}
-              </span>
-            ))}
-            {override?.accion === 'editado' && (
-              <span className="text-[10px] italic text-ink-2/50 ml-1">
-                Editada por {override.usuario} · {new Date(override.fecha).toLocaleDateString('es-CO')}
-              </span>
-            )}
-          </div>
-          {canEdit && onIncluir && (
+          {rec.temario && (
+            <div className="rounded-lg bg-amber-50/70 border border-amber-200/50 p-2.5 mb-2">
+              <span className="block text-[9px] font-bold uppercase tracking-wider text-amber-700/80 mb-1">Cómo quedaría en el planeador</span>
+              <TemarioTexto texto={rec.temario} />
+            </div>
+          )}
+          {override?.accion === 'editado' && (
+            <span className="block text-[10px] italic text-ink-2/50 mb-1">
+              Editada por {override.usuario} · {new Date(override.fecha).toLocaleDateString('es-CO')}
+            </span>
+          )}
+          {canEdit && onIncluir && !esContinua && (
             <button
               onClick={handleIncluir}
               disabled={incluyendo}
@@ -315,12 +343,13 @@ function SugerenciaDocenteCard({ s, materiaId, canEdit, onSave, onDelete, onIncl
   const [semana, setSemana] = useState(s.semana || '');
   const [titulo, setTitulo] = useState(s.titulo || '');
   const [descripcion, setDescripcion] = useState(s.descripcion || '');
+  const [temario, setTemario] = useState(s.temario || '');
 
   async function handleIncluir() {
     if (!onIncluir || incluyendo) return;
     setIncluyendo(true);
     try {
-      await onIncluir({ semana: s.semana, tema: s.titulo, justificacion: s.descripcion || '' });
+      await onIncluir({ semana: s.semana, titulo: s.titulo, temario: s.temario || '', justificacion: s.descripcion || '' });
     } catch (e) {
       setIncluyendo(false);
     }
@@ -330,6 +359,7 @@ function SugerenciaDocenteCard({ s, materiaId, canEdit, onSave, onDelete, onIncl
     setSemana(s.semana || '');
     setTitulo(s.titulo || '');
     setDescripcion(s.descripcion || '');
+    setTemario(s.temario || '');
   }
 
   async function save() {
@@ -342,6 +372,7 @@ function SugerenciaDocenteCard({ s, materiaId, canEdit, onSave, onDelete, onIncl
       semana: String(semana).trim(),
       titulo: titulo.trim(),
       descripcion: descripcion.trim(),
+      temario: temario.trim(),
     });
     setBusy(false);
     setEditing(false);
@@ -360,6 +391,7 @@ function SugerenciaDocenteCard({ s, materiaId, canEdit, onSave, onDelete, onIncl
           <input value={titulo} onChange={e => setTitulo(e.target.value)} className="flex-1 px-3 py-1.5 text-sm border border-magenta/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-magenta/20" placeholder="Título" />
         </div>
         <textarea value={descripcion} onChange={e => setDescripcion(e.target.value)} rows={2} className="w-full px-3 py-1.5 text-xs border border-magenta/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-magenta/20 resize-y" placeholder="Justificación (opcional)" />
+        <textarea value={temario} onChange={e => setTemario(e.target.value)} rows={3} className="w-full px-3 py-1.5 text-xs border border-magenta/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-magenta/20 resize-y" placeholder="Temario: cómo quedaría en el planeador (opcional)" />
         <div className="flex gap-2">
           <button onClick={save} disabled={busy} className="px-3 py-1 bg-magenta text-white text-xs font-semibold rounded-lg hover:bg-magenta-dark disabled:opacity-40 cursor-pointer transition-colors">{busy ? 'Guardando...' : 'Guardar'}</button>
           <button onClick={() => { setEditing(false); resetCampos(); }} className="px-3 py-1 text-xs text-ink-2 hover:bg-gray-100 rounded-lg cursor-pointer transition-colors">Cancelar</button>
@@ -377,6 +409,12 @@ function SugerenciaDocenteCard({ s, materiaId, canEdit, onSave, onDelete, onIncl
         <div className="min-w-0 flex-1">
           <h4 className="font-heading font-bold text-sm text-ink mb-1">{s.titulo}</h4>
           {s.descripcion && <p className="text-xs text-ink-2 leading-relaxed mb-2">{s.descripcion}</p>}
+          {s.temario && (
+            <div className="rounded-lg bg-amber-50/70 border border-amber-200/50 p-2.5 mb-2">
+              <span className="block text-[9px] font-bold uppercase tracking-wider text-amber-700/80 mb-1">Cómo quedaría en el planeador</span>
+              <TemarioTexto texto={s.temario} />
+            </div>
+          )}
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200/60 text-amber-700">
               {s.profesor}
@@ -438,12 +476,19 @@ function SugerenciasAlineacion({ materiaId, sugerenciasDocentes, recOverrides, c
   const recs = RECOMENDACIONES_PLANEADOR[materiaId] || [];
   const docentes = sugerenciasDocentes || [];
 
+  // Se muestran ordenadas por la semana propuesta, conservando el índice original
+  // (las ediciones/eliminaciones se guardan por índice, no por posición visible).
+  const primeraSemana = (s) => { const m = String(s || '').match(/\d+/); return m ? Number(m[0]) : 99; };
+  const recsOrdenadas = recs
+    .map((r, i) => ({ r, i }))
+    .sort((a, b) => primeraSemana(a.r.semana) - primeraSemana(b.r.semana));
+
   function getOverride(indice) {
     return recOverrides.find(o => o.indice === indice) || null;
   }
 
-  // Una recomendación ya incluida en el planeador (su tema aparece en el corpus) se oculta.
-  const yaEnPlaneador = (r) => !!(planeadorTexto && r.tema && planeadorTexto.includes(r.tema));
+  // Una recomendación ya incluida en el planeador (su temario aparece en el corpus) se oculta.
+  const yaEnPlaneador = (r) => { const t = r.temario || r.titulo; return !!(planeadorTexto && t && planeadorTexto.includes(t)); };
   const recsVisibles = recs.filter(r => !yaEnPlaneador(r));
   if (recsVisibles.length === 0 && docentes.length === 0) return null;
 
@@ -459,7 +504,7 @@ function SugerenciasAlineacion({ materiaId, sugerenciasDocentes, recOverrides, c
         Ajustes concretos al planeador semanal basados en el testeo empresarial, el informe de pertinencia, el MNC, la estructura didáctica FTCOCU-236 y los aportes de los docentes del programa.
       </p>
       <div className="space-y-3">
-        {recs.map((r, i) => {
+        {recsOrdenadas.map(({ r, i }) => {
           const override = getOverride(i);
           if (override?.accion === 'eliminado' && !canEdit) return null;
           if (yaEnPlaneador(r)) return null;
@@ -513,13 +558,13 @@ function AnalisisViabilidad({ materiaId, sugerenciasDocentes, planeadorTexto, ca
   const [data, setData] = useState(null);
 
   const recs = (RECOMENDACIONES_PLANEADOR[materiaId] || []).filter(
-    r => !(planeadorTexto && r.tema && planeadorTexto.includes(r.tema))
+    r => { const t = r.temario || r.titulo; return !(planeadorTexto && t && planeadorTexto.includes(t)); }
   );
   const docentes = (sugerenciasDocentes || []).filter(
     s => !(planeadorTexto && s.titulo && planeadorTexto.includes(s.titulo))
   );
   const propuestas = [
-    ...recs.map(r => ({ tema: r.tema, justificacion: r.justificacion, origen: 'base' })),
+    ...recs.map(r => ({ tema: r.titulo, justificacion: r.justificacion, origen: 'base' })),
     ...docentes.map(s => ({ tema: s.titulo, justificacion: s.descripcion || '', origen: 'docente', profesor: s.profesor })),
   ];
 
@@ -774,10 +819,11 @@ export default function MateriaFicha({ materiaId, materiaData, aportesCount = 0,
     if (!semanas.length) throw new Error('Sin semana válida');
 
     const plan = await planeadoresService.listar(materiaId);
+    const textoTemario = rec.temario || rec.titulo;
     for (const num of semanas) {
       const w = plan.find(p => Number(p.semana) === num) || {};
-      // Evita duplicar si el tema ya está anexado en esa semana.
-      if ((w.tematicas || '').includes(rec.tema)) continue;
+      // Evita duplicar si el temario ya está anexado en esa semana.
+      if ((w.tematicas || '').includes(textoTemario)) continue;
       const body = {
         materiaId,
         semana: num,
@@ -791,9 +837,9 @@ export default function MateriaFicha({ materiaId, materiaData, aportesCount = 0,
         editadoPor: user?.nombre || 'Sugerencia de alineación',
       };
       if (Array.isArray(w.tematicasDetalle) && w.tematicasDetalle.length) {
-        body.tematicasDetalle = [...w.tematicasDetalle, { texto: rec.tema, editadoPor: user?.nombre || null, editadoEn: new Date().toISOString() }];
+        body.tematicasDetalle = [...w.tematicasDetalle, { texto: textoTemario, editadoPor: user?.nombre || null, editadoEn: new Date().toISOString() }];
       } else {
-        body.tematicas = [w.tematicas, rec.tema].filter(Boolean).join('\n');
+        body.tematicas = [w.tematicas, textoTemario].filter(Boolean).join('\n');
       }
       await planeadoresService.guardar(body);
     }

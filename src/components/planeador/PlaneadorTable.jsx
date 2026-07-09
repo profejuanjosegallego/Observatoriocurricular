@@ -263,7 +263,8 @@ export default function PlaneadorTable({ materiaId }) {
   const [confirmRestore, setConfirmRestore] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [gruposAbiertos, setGruposAbiertos] = useState({});
-  const canEdit = !!user?.nombre;
+  // Solo el super administrador puede editar o retirar contenidos del planeador.
+  const canEdit = user?.rol === 'superadmin';
 
   const toggleGrupo = (gi) => setGruposAbiertos(p => ({ ...p, [gi]: !p[gi] }));
 
@@ -461,7 +462,7 @@ export default function PlaneadorTable({ materiaId }) {
         <p className="text-xs text-ink-2">
           {canEdit
             ? 'Haga clic en cualquier temática para editarla. Los cambios se guardan automáticamente.'
-            : 'Identifíquese para poder editar las temáticas.'}
+            : 'Solo el super administrador puede editar o retirar los contenidos del planeador.'}
         </p>
         <div className="flex items-center gap-2">
           {canEdit && backupInfo?.existe && (

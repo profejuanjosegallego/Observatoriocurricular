@@ -96,6 +96,7 @@ module.exports = async (req, res) => {
       const semana = String(b.semana || '').trim();
       const titulo = String(b.titulo || '').trim();
       const descripcion = String(b.descripcion || '').trim();
+      const temario = String(b.temario || '').trim();
 
       if (!MATERIAS_VALIDAS.includes(materiaId)) {
         return res.status(400).json({ error: 'materiaId inválido' });
@@ -113,7 +114,7 @@ module.exports = async (req, res) => {
         const { ObjectId } = require('mongodb');
         await col.updateOne(
           { _id: new ObjectId(b._id) },
-          { $set: { semana, titulo, descripcion, profesor, updatedAt: now } }
+          { $set: { semana, titulo, descripcion, temario, profesor, updatedAt: now } }
         );
       } else {
         await col.insertOne({
@@ -122,6 +123,7 @@ module.exports = async (req, res) => {
           semana,
           titulo,
           descripcion,
+          temario,
           createdAt: now,
           updatedAt: now,
         });

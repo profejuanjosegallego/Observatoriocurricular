@@ -221,6 +221,7 @@ const EJE_ICONOS = {
 export default function DashboardPage() {
   const { aporteCounts } = useOutletContext();
   const [saberesOpen, setSaberesOpen] = useState(false);
+  const [brechasOpen, setBrechasOpen] = useState(false);
   const [audioState, setAudioState] = useState('idle');
   const audioRef = useRef(null);
 
@@ -535,12 +536,27 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Matriz de brechas del programa — diagnóstico estratégico */}
+      {/* Matriz de brechas del programa — diagnóstico estratégico (colapsable) */}
       <div>
-        <div className="flex items-center gap-2 mb-2">
+        <button
+          onClick={() => setBrechasOpen(!brechasOpen)}
+          className="flex items-center gap-2 w-full text-left cursor-pointer group"
+        >
           <div className="w-2 h-6 rounded bg-gradient-to-b from-rose-500 to-magenta" />
-          <h3 className="font-heading font-bold text-lg text-ink">Matriz de brechas del programa</h3>
-        </div>
+          <h3 className="font-heading font-bold text-lg text-ink group-hover:text-magenta transition-colors duration-300">Matriz de brechas del programa</h3>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className={`w-5 h-5 text-ink-2 ml-1 transition-transform duration-300 ${brechasOpen ? 'rotate-180' : ''}`}
+            fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+          </svg>
+          {!brechasOpen && (
+            <span className="text-xs text-ink-2 ml-2">{INFORME_PERTINENCIA.ejesBrechas.length} ejes · oferta vs. demanda del sector</span>
+          )}
+        </button>
+
+        <div className={`overflow-hidden transition-all duration-500 ease-in-out ${brechasOpen ? 'max-h-[8000px] opacity-100 mt-4' : 'max-h-0 opacity-0'}`}>
         <p className="text-sm text-ink-2 mb-5 leading-relaxed">
           Instrumento de diagnóstico estratégico que contrasta, eje por eje, la oferta curricular vigente del programa con la demanda real del sector de las tecnologías de la información. La lectura se construye a partir de la triangulación de tres fuentes: el panel de expertos sectoriales de CESDE, el Estudio de Empleabilidad y Talento Digital — Colombia 2025 (Cenisoft) y la Clasificación Única de Ocupaciones para Colombia (CUOC 2025) del DANE. Para cada eje se identifica la oferta actual, la demanda del mercado, la acción curricular sugerida y una ruta concreta de tecnologías, cursos y certificaciones a implementar. Constituye la brújula del Observatorio: no descarta lo vigente, sino que señala con evidencia hacia dónde debe evolucionar la formación.
         </p>
@@ -607,6 +623,7 @@ export default function DashboardPage() {
         <p className="text-[11px] text-ink-2/50 italic mt-3 max-w-3xl">
           {INFORME_PERTINENCIA.meta.diagnostico} <span className="not-italic">·</span> Fuente: {INFORME_PERTINENCIA.meta.fuente}.
         </p>
+        </div>
       </div>
 
       {/* Estado de alineación por semestre — dashboard comparativo */}
@@ -665,6 +682,29 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Vigilancia Tecnológica e Inteligencia Competitiva — CTA */}
+      <Link
+        to="/vigilancia-tecnologica"
+        className="group block rounded-2xl border border-magenta/20 bg-gradient-to-br from-magenta/[0.04] to-transparent p-5 hover:shadow-lg hover:border-magenta/40 transition-all duration-300"
+      >
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-magenta to-magenta-soft text-white grid place-items-center shrink-0 shadow-md shadow-magenta/25">
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8.111 16.404a5.5 5.5 0 010-7.778m7.778 0a5.5 5.5 0 010 7.778M12 20v-8m0 0a1 1 0 100-2 1 1 0 000 2zM4.929 19.071a10 10 0 010-14.142m14.142 0a10 10 0 010 14.142" />
+            </svg>
+          </div>
+          <div className="min-w-0 flex-1">
+            <h4 className="font-heading font-bold text-base text-ink group-hover:text-magenta transition-colors mb-0.5">Vigilancia Tecnológica e Inteligencia Competitiva</h4>
+            <p className="text-sm text-ink-2 leading-relaxed">
+              Inicie un proceso para captar necesidades reales de las empresas y convertirlas en retos realizables por los estudiantes. Alimente el banco de retos del programa.
+            </p>
+          </div>
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-magenta shrink-0 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+          </svg>
+        </div>
+      </Link>
 
       {/* Niveles y materias — CTA */}
       <div>

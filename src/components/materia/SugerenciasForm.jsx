@@ -16,6 +16,7 @@ export default function SugerenciasForm({ materiaId, sugerencias, onSave, onDele
   const [semana, setSemana] = useState('');
   const [titulo, setTitulo] = useState('');
   const [descripcion, setDescripcion] = useState('');
+  const [temario, setTemario] = useState('');
   const [editId, setEditId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState({ text: '', ok: false });
@@ -35,6 +36,7 @@ export default function SugerenciasForm({ materiaId, sugerencias, onSave, onDele
     setSemana(s.semana);
     setTitulo(s.titulo);
     setDescripcion(s.descripcion);
+    setTemario(s.temario || '');
   }
 
   function cancelEdit() {
@@ -42,6 +44,7 @@ export default function SugerenciasForm({ materiaId, sugerencias, onSave, onDele
     setSemana('');
     setTitulo('');
     setDescripcion('');
+    setTemario('');
     setAnalisis(null);
   }
 
@@ -57,7 +60,7 @@ export default function SugerenciasForm({ materiaId, sugerencias, onSave, onDele
     setAnalizando(true);
     setMsg({ text: '', ok: false });
     try {
-      const cls = await sintesisService.clasificarSugerencia(materiaId, `${titulo.trim()}. ${descripcion.trim()}`);
+      const cls = await sintesisService.clasificarSugerencia(materiaId, `${titulo.trim()}. ${descripcion.trim()}. ${temario.trim()}`);
       setAnalisis(cls);
     } catch (err) {
       const m = (err && err.message) || '';
@@ -80,6 +83,7 @@ export default function SugerenciasForm({ materiaId, sugerencias, onSave, onDele
         semana: semana.trim(),
         titulo: titulo.trim(),
         descripcion: descripcion.trim(),
+        temario: temario.trim(),
       });
       setMsg({ text: editId ? 'Sugerencia actualizada.' : 'Sugerencia registrada.', ok: true });
       cancelEdit();
@@ -131,12 +135,22 @@ export default function SugerenciasForm({ materiaId, sugerencias, onSave, onDele
           </div>
         </div>
         <div>
-          <label className="block text-xs font-semibold mb-1 text-ink-2">Descripción o justificación <span className="font-normal text-ink-2/50">(opcional)</span></label>
+          <label className="block text-xs font-semibold mb-1 text-ink-2">Justificación <span className="font-normal text-ink-2/50">(opcional)</span></label>
           <textarea
             value={descripcion}
             onChange={alEditarCampo(setDescripcion)}
             placeholder="¿Por qué este ajuste aumentaría la alineación curricular? ¿En qué se basa?"
             rows={2}
+            className="w-full px-3 py-2 rounded-lg border border-amber-200/50 bg-white text-sm resize-y focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-200/30 transition-all"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold mb-1 text-ink-2">Temario <span className="font-normal text-ink-2/50">(cómo quedaría en el planeador)</span></label>
+          <textarea
+            value={temario}
+            onChange={alEditarCampo(setTemario)}
+            placeholder="Texto tal como aparecería en la casilla de temáticas de esa semana: subtemas, actividades o contenidos concretos."
+            rows={3}
             className="w-full px-3 py-2 rounded-lg border border-amber-200/50 bg-white text-sm resize-y focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-200/30 transition-all"
           />
         </div>
