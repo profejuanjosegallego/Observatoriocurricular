@@ -283,12 +283,14 @@ function RecCard({ rec, indice, override, canEdit, onEdit, onDelete, onRestore, 
               Editada por {override.usuario} · {new Date(override.fecha).toLocaleDateString('es-CO')}
             </span>
           )}
-          {canEdit && onIncluir && !esContinua && (
+          {canEdit && onIncluir && (
             <button
               onClick={handleIncluir}
               disabled={incluyendo}
               className="mt-3 inline-flex items-center gap-1.5 text-[11px] font-semibold rounded-lg px-2.5 py-1.5 transition-colors bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 cursor-pointer disabled:opacity-70 disabled:cursor-default"
-              title={`Anexa este tema a la semana ${rec.semana} del planeador y recalcula la gráfica`}
+              title={esContinua
+                ? `Anexa esta práctica como objetivo del semestre a todas las semanas (${rec.semana}) del planeador y recalcula la gráfica`
+                : `Anexa este tema a la semana ${rec.semana} del planeador y recalcula la gráfica`}
             >
               {incluyendo ? (
                 <>
@@ -303,7 +305,9 @@ function RecCard({ rec, indice, override, canEdit, onEdit, onDelete, onRestore, 
                   <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
                   </svg>
-                  Incluir en el planeador (Sem. {rec.semana})
+                  {esContinua
+                    ? `Incluir como objetivo del semestre (${rec.semana})`
+                    : `Incluir en el planeador (Sem. ${rec.semana})`}
                 </>
               )}
             </button>
@@ -814,16 +818,30 @@ export default function MateriaFicha({ materiaId, materiaData, aportesCount = 0,
 
   // Anexa una sugerencia a la(s) semana(s) propuesta(s) del planeador y dispara el recálculo del radar.
   async function incluirEnPlaneador(rec) {
-    const nums = String(rec.semana || '').match(/\d+/g);
-    const semanas = nums ? [...new Set(nums.map(Number))].filter(n => n >= 1 && n <= 18) : [];
+    const nums = (String(rec.semana || '').match(/\d+/g) || []).map(Number);
+    let semanas;
+    if (rec.continua) {
+      // Recomendación transversal (p. ej. "S3–18"): se aplica a TODAS las semanas del rango,
+      // no solo a los extremos. Sin fin explícito, se asume hasta la semana 18.
+      const desde = nums.length ? Math.min(...nums) : 1;
+      const hasta = nums.length > 1 ? Math.max(...nums) : 18;
+      semanas = [];
+      for (let n = desde; n <= hasta; n++) if (n >= 1 && n <= 18) semanas.push(n);
+    } else {
+      semanas = [...new Set(nums)].filter(n => n >= 1 && n <= 18);
+    }
     if (!semanas.length) throw new Error('Sin semana válida');
 
     const plan = await planeadoresService.listar(materiaId);
-    const textoTemario = rec.temario || rec.titulo;
+    // Las transversales se anexan con una nota que aclara que el texto es el objetivo del semestre.
+    const base = rec.temario || rec.titulo;
+    const textoTemario = rec.continua ? `Objetivo del semestre — ${base}` : base;
     for (const num of semanas) {
       const w = plan.find(p => Number(p.semana) === num) || {};
-      // Evita duplicar si el temario ya está anexado en esa semana.
-      if ((w.tematicas || '').includes(textoTemario)) continue;
+      // Evita duplicar si el temario ya está anexado en esa semana (en texto plano o en el detalle).
+      const yaAnexado = (w.tematicas || '').includes(textoTemario)
+        || (Array.isArray(w.tematicasDetalle) && w.tematicasDetalle.some(d => (d?.texto || '').includes(textoTemario)));
+      if (yaAnexado) continue;
       const body = {
         materiaId,
         semana: num,
