@@ -28,15 +28,156 @@ const IDEAS_EJEMPLO = [
   'Catálogo de productos para un emprendimiento local',
 ];
 
-async function generarProyecto(idea, nivel) {
+async function generarProyecto(idea, nivel, modeloDatos) {
   const res = await fetch('/api/generador', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ idea, nivel, tipo: 'proyecto' }),
+    body: JSON.stringify({ idea, nivel, tipo: 'proyecto', modeloDatos }),
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || 'Error al generar el proyecto');
   return data;
+}
+
+const esc = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+// Contexto compacto para la llamada de didácticas: reenviar el texto completo del proyecto duplica
+// tokens y dispara el límite acumulado por minuto de Groq. Con el resumen basta para proponer las semanas.
+function contextoParaDidacticas(p) {
+  const hitos = (p.avances || []).map((av, i) => {
+    const ents = Object.entries(av.porMateria || {})
+      .map(([mid, e]) => `${mid}: ${e.titulo} — ${String(e.detalle || '').slice(0, 160)}`)
+      .join(' / ');
+    return `Avance ${i + 1} (Semana ${av.semana} — ${av.nombre}): ${ents}`;
+  }).join('\n');
+  return `TITULO: ${p.titulo}
+OBJETIVO: ${p.objetivo}
+CONCEPTO: ${p.concepto}
+HITOS DE ENTREGA:
+${hitos}
+INTEGRACION: ${p.integracion}`;
+}
+
+// Exporta el proyecto integrador (con modelo de datos y didácticas) a PDF mediante la ventana de impresión del navegador.
+function imprimirProyectoPDF(proyecto, didacticas, nivel) {
+  const accent = NIVEL_COLORS[nivel].accent;
+  const nivelNombre = NIVELES.find(n => n.id === nivel)?.nombre || `Nivel ${nivel}`;
+  const materiasNombres = NIVEL_MATERIAS[nivel].map(mid => getMateria(mid)?.nombre || mid).join(' · ');
+
+  const rolesHtml = `
+    <div class="rol lider">
+      <p class="rolrol">★ ${esc(proyecto.liderRol)} <span class="badge">Líder</span></p>
+      <p class="rolmat">${esc(getMateria(proyecto.lider)?.nombre || proyecto.lider)}</p>
+      <p class="roldesc">${esc(proyecto.liderRazon)}</p>
+    </div>
+    ${(proyecto.apoyo || []).map(a => `
+    <div class="rol">
+      <p class="rolrol">● ${esc(a.rol)}</p>
+      <p class="rolmat">${esc(getMateria(a.materia)?.nombre || a.materia)}</p>
+      <p class="roldesc">${esc(a.descripcion)}</p>
+    </div>`).join('')}`;
+
+  const md = proyecto.modeloDatos;
+  const modeloHtml = md ? `
+    <h2>Modelo de datos</h2>
+    <table><thead><tr><th>Entidad</th><th>Atributos</th></tr></thead><tbody>
+      ${(md.entidades || []).map(e => `<tr>
+        <td class="ent">${esc(e.nombre)}</td>
+        <td><ul>${(e.atributos || []).map(a => `<li>${esc(a)}</li>`).join('')}</ul></td>
+      </tr>`).join('')}
+    </tbody></table>
+    ${(md.relaciones || []).length ? `<p class="subh">Relaciones</p><ul>${md.relaciones.map(r => `<li>${esc(r)}</li>`).join('')}</ul>` : ''}` : '';
+
+  const avancesHtml = (proyecto.avances || []).map((av, idx) => `
+    <div class="avance">
+      <p class="avtit"><span class="avbadge">Avance ${idx + 1}</span> Semana ${esc(av.semana)} — ${esc(av.nombre)}</p>
+      ${Object.entries(av.porMateria || {}).map(([mid, ent]) => `
+        <div class="ent-item">
+          <p class="entmat">${esc(getMateria(mid)?.nombre || mid)}</p>
+          <p class="enttit">${esc(ent.titulo)}</p>
+          <p class="entdet">${esc(ent.detalle)}</p>
+        </div>`).join('')}
+    </div>`).join('');
+
+  const didHtml = (didacticas && Object.keys(didacticas).length)
+    ? `<h2>Propuesta didáctica semanal</h2>${NIVEL_MATERIAS[nivel].map(mid => {
+        const sem = didacticas[mid] || [];
+        if (!sem.length) return '';
+        return `<h3>${esc(getMateria(mid)?.nombre || mid)}</h3>
+        <table><thead><tr><th class="sem">Sem.</th><th>Tema de clase</th><th>Actividad del proyecto</th></tr></thead><tbody>
+          ${sem.map(s => `<tr><td class="sem">${esc(s.semana)}</td><td>${esc(s.tema)}</td><td>${esc(s.actividad)}</td></tr>`).join('')}
+        </tbody></table>`;
+      }).join('')}`
+    : '';
+
+  const html = `<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8"><title>${esc(proyecto.titulo)}</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; color: #1c1622; margin: 0; padding: 32px 36px; font-size: 12px; line-height: 1.5; }
+  .head { border-bottom: 3px solid ${accent}; padding-bottom: 14px; margin-bottom: 20px; }
+  .kicker { font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: ${accent}; margin: 0; }
+  h1 { font-size: 20px; margin: 6px 0 4px; }
+  .meta { font-size: 11px; color: #6b6472; margin: 0; }
+  .obj { background: ${accent}0d; border-left: 4px solid ${accent}; padding: 10px 14px; border-radius: 0 6px 6px 0; margin: 14px 0; }
+  h2 { font-size: 13px; color: ${accent}; margin: 22px 0 8px; border-bottom: 1px solid #eee; padding-bottom: 4px; }
+  h3 { font-size: 12px; margin: 14px 0 4px; }
+  .subh { font-weight: 700; margin: 12px 0 4px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+  th { background: ${accent}; color: #fff; font-size: 10px; text-transform: uppercase; letter-spacing: .5px; padding: 7px 9px; text-align: left; }
+  td { border: 1px solid #e5e1e8; padding: 8px 9px; vertical-align: top; }
+  ul { margin: 4px 0 0; padding-left: 16px; }
+  li { margin-bottom: 3px; }
+  .ent { font-weight: 600; width: 22%; color: ${accent}; }
+  .sem { white-space: nowrap; width: 44px; text-align: center; font-weight: 600; color: ${accent}; }
+  .rol { border: 1px solid #e5e1e8; border-radius: 6px; padding: 8px 10px; margin-bottom: 6px; }
+  .rol.lider { border-left: 4px solid ${accent}; background: ${accent}08; }
+  .rolrol { font-weight: 700; color: ${accent}; margin: 0 0 2px; font-size: 11px; }
+  .rolmat { font-weight: 600; margin: 0; }
+  .roldesc { color: #6b6472; margin: 2px 0 0; }
+  .badge { background: ${accent}; color: #fff; border-radius: 10px; padding: 1px 7px; font-size: 9px; }
+  .avance { border: 1px solid #e5e1e8; border-radius: 6px; padding: 10px 12px; margin-bottom: 8px; }
+  .avtit { font-weight: 600; margin: 0 0 6px; }
+  .avbadge { background: ${accent}12; color: ${accent}; border-radius: 10px; padding: 1px 8px; font-size: 10px; font-weight: 700; }
+  .ent-item { background: #faf9fb; border-radius: 5px; padding: 6px 8px; margin-top: 5px; }
+  .entmat { font-size: 10px; font-weight: 600; color: ${accent}; margin: 0; }
+  .enttit { font-weight: 600; margin: 1px 0 0; }
+  .entdet { color: #6b6472; margin: 1px 0 0; }
+  .foot { margin-top: 28px; border-top: 1px solid #eee; padding-top: 10px; font-size: 9px; color: #9a93a3; }
+  @media print { body { padding: 0; } h2, h3 { page-break-after: avoid; } tr, .avance, .rol { page-break-inside: avoid; } }
+</style></head>
+<body onload="window.print()">
+  <div class="head">
+    <p class="kicker">CESDE · Proyecto integrador · ${esc(nivelNombre)}</p>
+    <h1>${esc(proyecto.titulo)}</h1>
+    <p class="meta">Modelo ${esc(proyecto.modelo)} · Materias: ${esc(materiasNombres)}</p>
+  </div>
+  <p>${esc(proyecto.descripcion)}</p>
+  <div class="obj"><strong>Objetivo integrador.</strong> ${esc(proyecto.objetivo)}</div>
+  <p><strong>${esc(proyecto.concepto)}.</strong> ${esc(proyecto.conceptoDetalle)}</p>
+
+  <h2>Roles de los módulos</h2>
+  ${rolesHtml}
+  ${modeloHtml}
+
+  <h2>Hitos de entrega</h2>
+  ${avancesHtml}
+
+  <h2>Mecanismo de integración</h2>
+  <p>${esc(proyecto.integracion)}</p>
+
+  ${didHtml}
+
+  <p class="foot">Propuesta generada con inteligencia artificial a partir de la idea central. El docente debe revisarla y validarla antes de aplicarla. Observatorio Curricular — CESDE.</p>
+</body></html>`;
+
+  const win = window.open('', '_blank');
+  if (!win) {
+    alert('El navegador bloqueó la ventana emergente. Permita las ventanas emergentes para descargar el PDF.');
+    return;
+  }
+  win.document.write(html);
+  win.document.close();
 }
 
 async function generarDidacticas(idea, nivel, contextoProyecto) {
@@ -140,6 +281,48 @@ function ProyectoResult({ proyecto, nivel }) {
           })}
         </div>
       </div>
+
+      {/* Modelo de datos (solo Nivel III) */}
+      {proyecto.modeloDatos && (
+        <div className="bg-white border border-gray-100 rounded-xl p-5">
+          <h4 className="font-heading font-bold text-sm text-ink mb-3 flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" style={{ color: colors.accent }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+            </svg>
+            Modelo de datos
+            <span className="text-[10px] font-semibold text-ink-2/60">
+              {proyecto.modeloDatos.entidades.length} entidades
+            </span>
+          </h4>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {proyecto.modeloDatos.entidades.map((e, i) => (
+              <div key={i} className="rounded-lg border border-gray-100 overflow-hidden">
+                <div className="px-3 py-2 text-xs font-bold text-white" style={{ backgroundColor: colors.accent }}>
+                  {e.nombre}
+                </div>
+                <ul className="divide-y divide-gray-50">
+                  {e.atributos.map((a, j) => (
+                    <li key={j} className="px-3 py-1.5 text-[11px] text-ink-2 leading-snug">{a}</li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+          {proyecto.modeloDatos.relaciones.length > 0 && (
+            <div className="mt-4">
+              <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: colors.accent }}>Relaciones</p>
+              <ul className="space-y-1.5">
+                {proyecto.modeloDatos.relaciones.map((r, i) => (
+                  <li key={i} className="flex items-start gap-2 text-xs text-ink-2 leading-relaxed">
+                    <span className="mt-0.5 shrink-0 font-bold" style={{ color: colors.accent }}>◆</span>
+                    {r}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Avances */}
       <div className="bg-white border border-gray-100 rounded-xl p-5">
@@ -283,10 +466,14 @@ function DidacticasResult({ didacticas, nivel }) {
 export default function GeneradorPage() {
   const [idea, setIdea] = useState('');
   const [nivel, setNivel] = useState(1);
+  const [numEntidades, setNumEntidades] = useState(5);
+  const [minAtr, setMinAtr] = useState(5);
+  const [maxAtr, setMaxAtr] = useState(10);
   const [loading, setLoading] = useState(false);
   const [loadingDidacticas, setLoadingDidacticas] = useState(false);
   const [proyecto, setProyecto] = useState(null);
   const [proyectoRaw, setProyectoRaw] = useState('');
+  const [alineado, setAlineado] = useState(false);
   const [didacticas, setDidacticas] = useState(null);
   const [error, setError] = useState('');
   const [tokensUsados, setTokensUsados] = useState(null);
@@ -299,19 +486,24 @@ export default function GeneradorPage() {
     setProyecto(null);
     setDidacticas(null);
     setTokensUsados(null);
+    setAlineado(false);
     setLoading(true);
 
     try {
-      const res = await generarProyecto(idea.trim(), nivel);
+      const modeloDatos = nivel === 3
+        ? { numEntidades: Number(numEntidades) || 5, minAtr: Number(minAtr) || 5, maxAtr: Number(maxAtr) || 10 }
+        : null;
+      const res = await generarProyecto(idea.trim(), nivel, modeloDatos);
       setProyecto(res.proyecto);
       setProyectoRaw(res.raw);
+      setAlineado(!!res.alineadoPlaneador);
       const t1 = res.usage || {};
       setTokensUsados({ prompt: t1.prompt_tokens || 0, completion: t1.completion_tokens || 0, total: t1.total_tokens || 0 });
       setTimeout(() => resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
 
       setLoading(false);
       setLoadingDidacticas(true);
-      const res2 = await generarDidacticas(idea.trim(), nivel, res.raw);
+      const res2 = await generarDidacticas(idea.trim(), nivel, contextoParaDidacticas(res.proyecto));
       setDidacticas(res2.didacticas);
       const t2 = res2.usage || {};
       setTokensUsados(prev => ({
@@ -407,6 +599,45 @@ export default function GeneradorPage() {
             </div>
           </div>
 
+          {/* Modelo de datos (solo Nivel III) */}
+          {nivel === 3 && (
+            <div className="rounded-xl border-2 p-4" style={{ borderColor: NIVEL_COLORS[3].accent + '30', backgroundColor: NIVEL_COLORS[3].accent + '06' }}>
+              <div className="flex items-center gap-2 mb-1">
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" style={{ color: NIVEL_COLORS[3].accent }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+                </svg>
+                <label className="text-sm font-semibold text-ink">Modelo de datos</label>
+              </div>
+              <p className="text-[11px] text-ink-2 mb-3">Indique cuántas entidades (tablas) debe tener el modelo relacional. La IA diseñará los nombres, los atributos y las relaciones respetando el rango de atributos por entidad.</p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[11px] font-medium text-ink-2 mb-1">Número de entidades</label>
+                  <input
+                    type="number" min={1} max={20} value={numEntidades}
+                    onChange={e => setNumEntidades(e.target.value)}
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:border-magenta focus:ring-2 focus:ring-magenta/10 transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-ink-2 mb-1">Atributos mínimos</label>
+                  <input
+                    type="number" min={1} max={20} value={minAtr}
+                    onChange={e => setMinAtr(e.target.value)}
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:border-magenta focus:ring-2 focus:ring-magenta/10 transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-ink-2 mb-1">Atributos máximos</label>
+                  <input
+                    type="number" min={1} max={20} value={maxAtr}
+                    onChange={e => setMaxAtr(e.target.value)}
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:border-magenta focus:ring-2 focus:ring-magenta/10 transition-all"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Botón */}
           <button
             type="submit"
@@ -448,6 +679,28 @@ export default function GeneradorPage() {
             <div className="flex items-center gap-2 mb-4">
               <div className="w-2 h-5 rounded bg-gradient-to-b from-magenta to-magenta-soft" />
               <h3 className="font-heading font-semibold text-base">Proyecto integrador generado</h3>
+              {alineado && (
+                <span
+                  className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200"
+                  title="Los entregables de cada hito se ajustaron a las temáticas reales del planeador de las materias"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                  Alineado al planeador
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => imprimirProyectoPDF(proyecto, didacticas, nivel)}
+                className="ml-auto inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg px-3 py-1.5 border border-gray-200 text-ink-2 hover:border-magenta hover:text-magenta transition-all cursor-pointer"
+                title="Exporta el proyecto, el modelo de datos y las didácticas a PDF"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Descargar PDF
+              </button>
             </div>
             <ProyectoResult proyecto={proyecto} nivel={nivel} />
           </div>

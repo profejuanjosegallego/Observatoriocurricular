@@ -1,4 +1,45 @@
 const { MATERIAS_INFO, NIVELES } = require('../lib/constants');
+const { getDb } = require('../lib/mongo');
+
+// Ventanas de cada hito de entrega: el Avance N integra lo cubierto en esas semanas del planeador.
+const VENTANAS_AVANCE = [
+  { avance: 1, desde: 1, hasta: 6 },
+  { avance: 2, desde: 7, hasta: 12 },
+  { avance: 3, desde: 13, hasta: 17 },
+];
+
+// Trae el planeador real de las materias del nivel y lo condensa por ventana de avance.
+// Se limita en longitud a propósito: el prompt del proyecto ya roza el tope de 12k TPM de Groq.
+async function construirResumenPlaneador(materias) {
+  let docs;
+  try {
+    const db = await getDb();
+    docs = await db.collection('planeadores').find({ materiaId: { $in: materias } }).toArray();
+  } catch {
+    return null; // Sin BD (o error de conexión) se genera igual, solo sin alinear.
+  }
+  if (!docs || !docs.length) return null;
+
+  const porMateria = {};
+  for (const d of docs) (porMateria[d.materiaId] = porMateria[d.materiaId] || []).push(d);
+
+  const lineas = [];
+  for (const mid of materias) {
+    const rows = (porMateria[mid] || []).slice().sort((a, b) => (a.semana || 0) - (b.semana || 0));
+    if (!rows.length) continue;
+    lineas.push(`MATERIA ${mid} (${(MATERIAS_INFO[mid] || {}).nombre || mid}):`);
+    for (const v of VENTANAS_AVANCE) {
+      const temas = rows
+        .filter(r => (r.semana || 0) >= v.desde && (r.semana || 0) <= v.hasta)
+        .map(r => `S${r.semana} ${String(r.tematicas || '').replace(/\s+/g, ' ').trim()}`)
+        .filter(s => s.length > 4)
+        .join('; ');
+      const corto = temas.length > 190 ? temas.slice(0, 190) + '…' : temas;
+      lineas.push(`  Antes del Avance ${v.avance} (S${v.desde}-${v.hasta}): ${corto || '(sin temas registrados)'}`);
+    }
+  }
+  return lineas.length ? lineas.join('\n') : null;
+}
 
 const SYSTEM = 'Eres un experto en diseño curricular por competencias para programas técnicos de desarrollo de software en Colombia (CESDE, Medellín). Diseñas proyectos integradores y propuestas didácticas semanales alineados al perfil del «Consultor Tech». Redactas siempre en español, en tercera persona y con un tono académico, claro y preciso. No uses markdown. No uses asteriscos ni negritas. Cuando describas entregables técnicos, sé EXTREMADAMENTE ESPECÍFICO: menciona nombres de tablas con columnas, nombres de archivos HTML con secciones, nombres de funciones con parámetros, consultas SQL con cláusulas concretas. Nunca uses frases genéricas como "se crea la base de datos" o "se implementa la lógica".';
 
@@ -29,18 +70,30 @@ const NIVEL_CONTEXTO = {
   },
 };
 
-function buildProyectoPrompt(idea, nivel) {
+function buildProyectoPrompt(idea, nivel, modeloDatos, resumenPlaneador) {
   const nv = NIVEL_CONTEXTO[nivel];
   const materiasList = nv.materias.map(m => `${m} (${MATERIAS_INFO[m].nombre})`).join(', ');
   const liderNombre = MATERIAS_INFO[nv.lider].nombre;
   const apoyoMaterias = nv.materias.filter(m => m !== nv.lider);
+
+  // Solo en Nivel III el docente puede exigir un modelo de datos con N entidades y un rango de atributos.
+  const md = (nivel === 3 && modeloDatos) ? modeloDatos : null;
+  const nEnt = md ? Math.max(1, Math.min(20, parseInt(md.numEntidades) || 5)) : 0;
+  const minA = md ? Math.max(1, parseInt(md.minAtr) || 5) : 5;
+  const maxA = md ? Math.max(minA, parseInt(md.maxAtr) || 10) : 10;
 
   return `IDEA CENTRAL: "${idea}"
 NIVEL: ${NIVELES[nivel].nombre}
 MODELO: ${nv.modelo} — ${nv.perfil}
 MATERIAS: ${materiasList}
 MATERIA LIDER: ${liderNombre} (rol: ${nv.liderRol})
-CAPACIDADES TECNICAS DEL NIVEL: ${nv.tecnico}
+CAPACIDADES TECNICAS DEL NIVEL: ${nv.tecnico}${md ? `
+MODELO DE DATOS OBLIGATORIO: El proyecto se sustenta en un modelo relacional de EXACTAMENTE ${nEnt} entidades (tablas). Cada entidad debe tener entre ${minA} y ${maxA} atributos, incluida su clave primaria y las claves foráneas que correspondan. Define de forma explícita y coherente con el dominio "${idea}" las relaciones entre las entidades (1:1, 1:N o N:M).` : ''}${resumenPlaneador ? `
+
+PLANEADOR REAL DE LAS MATERIAS (temáticas efectivamente registradas, agrupadas por hito de entrega):
+${resumenPlaneador}
+
+REGLA DE ALINEACION CON EL PLANEADOR — es obligatoria: el entregable de cada materia en cada avance debe corresponder ÚNICAMENTE a las temáticas que el planeador anterior cubre hasta esa semana. Las capacidades se acumulan (lo visto antes del Avance 1 sigue disponible en los avances 2 y 3). NUNCA propongas en un avance un entregable que dependa de un tema que el planeador solo cubre en un avance posterior; si una capacidad clave (por ejemplo, una API REST completa) solo se termina más adelante, el avance previo debe reflejar un entregable PARCIAL coherente con lo ya visto en el planeador.` : ''}
 
 Genera un PROYECTO INTEGRADOR completo y realista para estudiantes de un programa técnico laboral (18 semanas, 72 horas por materia, 4 h semanales).
 
@@ -92,7 +145,45 @@ NOMBRE: <nombre descriptivo>
 ${nv.materias.map(m => `${m}_TITULO: <título específico sobre "${idea}">
 ${m}_DETALLE: <SÉ CONCRETO como este ejemplo — BD: "Procedimiento almacenado ConsultarVentasPorMes(@mes INT) con JOIN entre Pedido, DetallePedido y Producto, GROUP BY categoria. Consulta SELECT c.nombre, COUNT(*), SUM(dp.cantidad*p.precio) FROM ... con HAVING SUM>50000 para categorías más rentables" — Frontend: "Página dashboard.html responsive con Bootstrap: tabla resumen de stock bajo (stock<10), sección de últimos pedidos con badges de estado, formulario de reposición con select de proveedor y validación" — Lógica: "Programa Java con menú switch/while: 1)Listar productos, 2)Buscar por nombre, 3)Agregar al carrito, 4)Calcular total con IVA. Función buscarProducto(String nombre) que recorra el arreglo y retorne coincidencias" — Adapta al dominio de "${idea}">`).join('\n')}
 
-INTEGRACION: <cómo se integran las tres materias para resolver el problema de "${idea}", qué artefacto las conecta>`;
+INTEGRACION: <cómo se integran las tres materias para resolver el problema de "${idea}", qué artefacto las conecta>${md ? `
+
+MODELO_DATOS:
+ENTIDAD: <nombre de la primera entidad del dominio de "${idea}">
+ATRIBUTOS: <atributo (tipo; marca PK o FK cuando aplique)> || <atributo (tipo)> || ... (entre ${minA} y ${maxA} atributos)
+ENTIDAD: <nombre de la segunda entidad>
+ATRIBUTOS: <...>
+(repite el bloque ENTIDAD/ATRIBUTOS hasta completar EXACTAMENTE ${nEnt} entidades; cada entidad en su propia línea que empiece por ENTIDAD:)
+RELACIONES:
+REL: <Entidad A> <1:1|1:N|N:M> <Entidad B> — <explicación breve de la relación en el dominio>
+REL: <...> (una línea REL por cada relación relevante entre las entidades)` : ''}`;
+}
+
+// Extrae el modelo relacional (entidades + relaciones) que solo se solicita en Nivel III.
+function parseModeloDatos(raw) {
+  const sec = raw.match(/MODELO_DATOS:([\s\S]*)$/i);
+  if (!sec) return null;
+
+  const relSplit = sec[1].split(/^[ \t]*RELACIONES:[ \t]*$/im);
+  const entPart = relSplit[0] || '';
+  const relPart = relSplit[1] || '';
+
+  const entidades = [];
+  const blocks = entPart.split(/^[ \t]*ENTIDAD:/im).map(b => b.trim()).filter(Boolean);
+  for (const block of blocks) {
+    const nombre = (block.split('\n')[0] || '').trim();
+    if (!nombre) continue;
+    const atrM = block.match(/ATRIBUTOS:\s*([\s\S]+)/i);
+    const atributos = atrM
+      ? atrM[1].split('||').map(a => a.trim().replace(/\s*\n+\s*/g, ' ')).filter(Boolean)
+      : [];
+    entidades.push({ nombre, atributos });
+  }
+
+  const relaciones = [];
+  for (const m of relPart.matchAll(/REL:\s*(.+)/gi)) relaciones.push(m[1].trim());
+
+  if (!entidades.length) return null;
+  return { entidades, relaciones };
 }
 
 function parseProyecto(raw, nivel) {
@@ -148,6 +239,7 @@ function parseProyecto(raw, nivel) {
     apoyo,
     avances,
     integracion: g('INTEGRACION'),
+    modeloDatos: nivel === 3 ? parseModeloDatos(raw) : null,
     modelo: nv.modelo,
   };
 }
@@ -376,7 +468,7 @@ function parseBootcamp(raw, nivel) {
   };
 }
 
-async function callGroq(systemPrompt, userPrompt) {
+async function callGroq(systemPrompt, userPrompt, maxTokens = 5000) {
   const key = process.env.GROQ_API_KEY;
   if (!key) throw new Error('Falta la variable de entorno GROQ_API_KEY');
 
@@ -386,7 +478,7 @@ async function callGroq(systemPrompt, userPrompt) {
     body: JSON.stringify({
       model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
       temperature: 0.6,
-      max_tokens: 5000,
+      max_tokens: maxTokens,
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
@@ -414,12 +506,12 @@ async function callGroq(systemPrompt, userPrompt) {
   return { content, usage };
 }
 
-async function callGroqWithRetry(systemPrompt, userPrompt) {
-  for (let i = 0; i < 3; i++) {
+async function callGroqWithRetry(systemPrompt, userPrompt, maxTokens = 5000) {
+  for (let i = 0; i < 4; i++) {
     try {
-      return await callGroq(systemPrompt, userPrompt);
+      return await callGroq(systemPrompt, userPrompt, maxTokens);
     } catch (e) {
-      if (e.rateLimited && i < 2) {
+      if (e.rateLimited && i < 3) {
         await new Promise(r => setTimeout(r, (e.retrySecs + 2) * 1000));
         continue;
       }
@@ -435,7 +527,7 @@ module.exports = async (req, res) => {
       return res.status(405).json({ error: 'Método no permitido' });
     }
 
-    const { idea, nivel, tipo, contextoProyecto } = req.body || {};
+    const { idea, nivel, tipo, contextoProyecto, modeloDatos } = req.body || {};
     const nv = parseInt(nivel);
     if (!idea || !idea.trim()) return res.status(400).json({ error: 'Debe proporcionar una idea para el proyecto.' });
     if (![1, 2, 3].includes(nv)) return res.status(400).json({ error: 'El nivel debe ser 1, 2 o 3.' });
@@ -455,10 +547,16 @@ module.exports = async (req, res) => {
       return res.status(200).json({ bootcamp, raw, usage });
     }
 
-    const prompt = buildProyectoPrompt(idea.trim(), nv);
-    const { content: raw, usage } = await callGroqWithRetry(SYSTEM, prompt);
+    // Alineación automática: si las materias del nivel tienen planeador cargado, la IA ajusta
+    // los entregables de cada hito a lo realmente cubierto hasta esa semana.
+    const resumenPlaneador = await construirResumenPlaneador(NIVEL_CONTEXTO[nv].materias);
+    const prompt = buildProyectoPrompt(idea.trim(), nv, modeloDatos, resumenPlaneador);
+    // El prompt del proyecto es extenso (~7,3k tokens) y con el planeador crece; con max_tokens 5000
+    // superaría el límite de 12k TPM del plan gratuito de Groq. Se reserva menos salida para caber.
+    const maxOut = resumenPlaneador ? 3500 : 4000;
+    const { content: raw, usage } = await callGroqWithRetry(SYSTEM, prompt, maxOut);
     const proyecto = parseProyecto(raw, nv);
-    return res.status(200).json({ proyecto, raw, usage });
+    return res.status(200).json({ proyecto, raw, usage, alineadoPlaneador: !!resumenPlaneador });
   } catch (e) {
     return res.status(500).json({ error: e.message });
   }
