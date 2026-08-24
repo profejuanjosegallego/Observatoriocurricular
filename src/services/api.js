@@ -162,3 +162,14 @@ export const usuariosService = {
       body: JSON.stringify(body),
     }),
 };
+
+// Asistente del inicio. Reutiliza /api/generador con tipo 'chat' para no crear
+// una función serverless nueva (el plan Hobby de Vercel admite 12 y ya están las 12).
+export const asistenteService = {
+  preguntar: (pregunta, contexto) =>
+    request('/api/generador', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tipo: 'chat', pregunta, contexto }),
+    }),
+};

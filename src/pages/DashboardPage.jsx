@@ -3,6 +3,7 @@ import { Link, useOutletContext } from 'react-router-dom';
 import { NIVELES, getMateriasPorNivel } from '../data/materias';
 import { INFORME_PERTINENCIA } from '../data/alineacion';
 import EstadoMaterias from '../components/dashboard/EstadoMaterias';
+import AsistenteChat from '../components/common/AsistenteChat';
 
 const SABERES = [
   {
@@ -768,6 +769,8 @@ export default function DashboardPage() {
           })}
         </div>
       </div>
+
+      <AsistenteChat />
     </div>
   );
 }

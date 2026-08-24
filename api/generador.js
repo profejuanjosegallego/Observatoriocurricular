@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const { MATERIAS_INFO, NIVELES } = require('../lib/constants');
 const { getDb } = require('../lib/mongo');
 
@@ -520,11 +521,94 @@ async function callGroqWithRetry(systemPrompt, userPrompt, maxTokens = 5000) {
   }
 }
 
+// ─────────────────── Asistente del inicio (tipo: 'chat') ───────────────────
+//
+// El navegador ya buscó en su base de conocimiento y manda aquí solo lo que no
+// resolvió, junto con los fragmentos más cercanos. La IA responde ANCLADA a esos
+// fragmentos: si el contexto no alcanza, debe decirlo en vez de inventar.
+// Las respuestas se cachean por pregunta normalizada para no gastar cupo dos veces.
+
+const SYSTEM_CHAT = 'Eres el asistente del Observatorio Curricular de CESDE, una plataforma donde el equipo docente del programa Técnico Laboral como Asistente en Desarrollo de Software construye de forma colaborativa los planeadores y los objetivos de enseñanza. Acompañas a docentes en dos temas: el uso de la plataforma y los fundamentos de Git y GitFlow. Respondes SIEMPRE en español, en tercera persona, con un tono claro y respetuoso. No uses markdown, ni asteriscos, ni negritas, ni emojis. Sé breve: máximo dos párrafos cortos. REGLA CENTRAL: responde únicamente con base en el CONTEXTO que se te entrega. Si el contexto no contiene la respuesta, dilo con franqueza y sugiere consultarlo en la mesa técnica del programa; no inventes funciones, botones ni rutas de la plataforma que no aparezcan en el contexto. Para preguntas de Git puedes incluir comandos concretos, cada uno en su propia línea.';
+
+const MAX_PREGUNTA = 500;
+const MAX_CONTEXTO = 6000;
+
+function normalizarPregunta(texto) {
+  return String(texto || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9ñ\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+async function responderChat(req, res) {
+  const { pregunta, contexto } = req.body || {};
+
+  if (!pregunta || !String(pregunta).trim()) {
+    return res.status(400).json({ error: 'Debe escribir una pregunta.' });
+  }
+  const preg = String(pregunta).trim().slice(0, MAX_PREGUNTA);
+
+  // El contexto llega del cliente: se recorta aquí para que una petición grande
+  // no consuma el cupo diario de tokens compartido con las demás funciones de IA.
+  const ctx = String(contexto || '').trim().slice(0, MAX_CONTEXTO);
+
+  const clave = crypto.createHash('sha1').update(normalizarPregunta(preg)).digest('hex');
+
+  let coleccion = null;
+  try {
+    const db = await getDb();
+    coleccion = db.collection('chat_cache');
+    const guardada = await coleccion.findOne({ _id: clave });
+    if (guardada && guardada.respuesta) {
+      return res.status(200).json({ respuesta: guardada.respuesta, origen: 'cache' });
+    }
+  } catch {
+    // Sin base de datos el asistente sigue funcionando, solo pierde la caché.
+    coleccion = null;
+  }
+
+  const prompt = [
+    'CONTEXTO DISPONIBLE (información verificada de la plataforma y de Git):',
+    ctx || '(sin contexto relacionado)',
+    '',
+    'PREGUNTA DEL DOCENTE:',
+    preg,
+    '',
+    'Responda en máximo dos párrafos cortos, usando solo el contexto anterior. Si el contexto no responde la pregunta, indíquelo con franqueza.',
+  ].join('\n');
+
+  const { content, usage } = await callGroqWithRetry(SYSTEM_CHAT, prompt, 700);
+  const respuesta = String(content).trim();
+
+  if (coleccion) {
+    try {
+      await coleccion.updateOne(
+        { _id: clave },
+        { $set: { pregunta: preg, respuesta, fecha: new Date() } },
+        { upsert: true },
+      );
+    } catch {
+      // Si la caché falla, la respuesta ya está lista y se devuelve igual.
+    }
+  }
+
+  return res.status(200).json({ respuesta, origen: 'ia', usage });
+}
+
 module.exports = async (req, res) => {
   try {
     if (req.method !== 'POST') {
       res.setHeader('Allow', 'POST');
       return res.status(405).json({ error: 'Método no permitido' });
+    }
+
+    // El asistente del inicio va primero: no requiere idea ni nivel, a diferencia
+    // de las demás rutas de este endpoint.
+    if ((req.body || {}).tipo === 'chat') {
+      return await responderChat(req, res);
     }
 
     const { idea, nivel, tipo, contextoProyecto, modeloDatos } = req.body || {};
